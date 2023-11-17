@@ -16,8 +16,19 @@ Base.iterate(cxt::Context, idx::Int) = iterate(cxt.pos, idx)
 Base.iterate(cxt::Context) = iterate(cxt.pos)
 Base.length(cxt::Context) = length(cxt.pos)
 
+function to_index(cxt::Context)
+    return [po.index for po in cxt]
+end
+
 function to_ternary(x)
-    pow = Int(floor(log(3, x)))
+    if x ==0
+        return [0]
+    end
+    pow = log(3, x)
+    if abs(pow - round(pow)) < 1e-8
+        pow = round(pow)
+    end
+    pow = Int(floor(pow))
     digs = Int[]
     while pow >= 0
         dig, x = divrem(x, 3^pow)

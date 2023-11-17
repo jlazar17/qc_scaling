@@ -3,7 +3,7 @@ struct ParityOperator
     index::Int
     function ParityOperator(βs::Vector{Int}, index::Int)
         @assert length(βs) % 2==0 "Odd number of betas"
-        @assert all(βs .<= 2) "Some betas are not in <2>"
+        @assert all(βs .<= 2) "Some betas are not in <2> $(βs) $(index)"
         @assert index <= 3 ^ length(βs) "Index is too big"
         return new(βs, index)
     end

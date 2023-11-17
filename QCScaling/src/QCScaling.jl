@@ -38,6 +38,38 @@ function calculate_representation(states::Vector{PseudoGHZState}, even_base_cxt:
     return round.(representation ./ ctr)
 end
 
+function score(
+    state::PseudoGHZState,
+    rep::Vector{Int},
+    goal_representation::Vector{Int},
+    even_base_cxt::Context,
+    odd_base_cxt::Context
+)
+    nqubit = length(first(states).generator)
+    undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
+    base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
+
+    cxt = Context(state.generator, base_cxt)
+    score = 0
+    for po in cxt
+        if ((po.index+1) ÷ 2) in undefined_idxs || po.index==3^nqubit
+            continue
+        end
+        companion = 1
+        if po.index // 2!=po.index / 2
+            companion = -1
+        end
+        p = parity(state, po)
+        if p==0.5
+            continue
+        end
+        predicted_bit = abs( - rep[po.index + companion])
+        diff = predicted_bit==goal_representation[(po.index+1) ÷ 2] ? 1 : -1
+        score += diff
+    end
+end
+    
+
 function score_states(
     states::Vector{PseudoGHZState},
     goal_representation::Vector{Int},
