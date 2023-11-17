@@ -262,7 +262,7 @@ def precalculate(
     contextlist0 = [[op_to_index_dict[op] for op in get_context(XXX)] for XXX in XXXlist0]
 
     #Count number of times each PO appears, and whether each couple (both POs) appears.
-    PO_count=np.zeros(3**nqubit)
+    PO_count = np.zeros(3**nqubit)
     for contextindexes in contextlist0:
         for ii in contextindexes:
             PO_count[ii]+=1
@@ -576,8 +576,8 @@ def alphabeta_improver_nofall_multi5_smartpick(
 
     #Step 2: For each context rolled, calculate the best-scorer state. Use the previous precalculations
     #to save resources!
-    extra_states2=[None]*len(extra_states)
-    modifiedscores_for_extra_states2=[None]*len(extra_states)
+    extra_states2 = [None]*len(extra_states)
+    modifiedscores_for_extra_states2 = [None]*len(extra_states)
 
     #print("Starting second precalculations (using perturb functions)")
 
@@ -828,113 +828,113 @@ def get_score_modifier(
 
     return total_score_modifier
 
-def score_states_quick(pre_scored_states,precalculations,precalculations_alpha,data=data,nqubit=nqubit,op_to_index_dict=op_to_index_dict,oplist=oplist):
-
-    XXXlist0 = [state[0] for state in pre_scored_states]
-
-    contextlist0 = precalculations[0]
-    PO_count = precalculations[1]
-    which_POs_appear_wcouple = precalculations[2]
-    POs_appear_wcouple = precalculations[3]
-    whichcontextPOs_appear_wcouple = precalculations[4]
-    position_contextPOs_wcouple = precalculations[5]
-    ################
-
-
-    #Code dependent on the alphas
-    ################
-    #For each state in the selection: Calculate the parities of the POs which appear with their couple
-    parities_wcouple=precalculations_alpha[0]
-    global_parities=precalculations_alpha[1]
-
-    #Score each state based on the number of POs that appear with their couple with a parity favorable to the data,
-    #using the current majority of the PO couple.
-    state_score=[None]*len(contextlist0)
-    for istate,which_appear in enumerate(whichcontextPOs_appear_wcouple):
-        score=0
-        for iappear,PO in enumerate(which_appear):
-            if PO%2==0:
-                complement_mean_parity=round_z(mean_z(global_parities[PO+1]))
-                databit=data[int(PO/2)]
-            else:
-                complement_mean_parity=round_z(mean_z(global_parities[PO-1]))
-                databit=data[int((PO-1)/2)]
-
-            stateparity=parities_wcouple[istate][iappear][1]
-            if databit==0:
-                if stateparity==complement_mean_parity:
-                    score+=1
-                elif stateparity==(1-complement_mean_parity):
-                    score-=1
-            else:
-                if stateparity==(1-complement_mean_parity):
-                    score+=1
-                elif stateparity==complement_mean_parity:
-                    score-=1
-        state_score[istate]=score
-
-    ################
-
-    scored_states = [[XXXlist0[istate],score] for istate,score in enumerate(state_score)]
-    return scored_states
-
-def score_states_quicker(pre_scored_states,precalculations,precalculations_alpha,data=data,nqubit=nqubit,op_to_index_dict=op_to_index_dict,oplist=oplist):
-
-    #This block is meant to be applied on the pre_scored_states that come out of _PROTO. The last state should have
-    #the correct score already.
-
-    XXXlist0=[state[0] for state in pre_scored_states]
-
-    #Precalculations
-    ################
-    contextlist0=precalculations[0]
-    PO_count=precalculations[1]
-    which_POs_appear_wcouple=precalculations[2]
-    POs_appear_wcouple=precalculations[3]
-    whichcontextPOs_appear_wcouple=precalculations[4]
-    position_contextPOs_wcouple=precalculations[5]
-    newcomer_whichcontextPOs_appear_wcouple=precalculations[6]
-    ################
-
-
-    #Code dependent on the alphas
-    ################
-    #For each state in the selection: Calculate the parities of the POs which appear with their couple
-    parities_wcouple=precalculations_alpha[0]
-    global_parities=precalculations_alpha[1]
-
-    #Score each state based on the number of POs that appear with their couple with a parity favorable to the data,
-    #using the current majority of the PO couple. HOWEVER, we skip the last state, as it was obtained elsewhere.
-    state_score=[None]*len(contextlist0)
-    for istate,which_appear in enumerate(newcomer_whichcontextPOs_appear_wcouple[:-1]):
-        score=0
-        for iappear,PO in enumerate(which_appear):
-            if PO%2==0:
-                complement_mean_parity=round_z(mean_zz(global_parities[PO+1]))
-                databit=data[int(PO/2)]
-            else:
-                complement_mean_parity=round_z(mean_zz(global_parities[PO-1]))
-                databit=data[int((PO-1)/2)]
-
-            stateparity=parityanalytic(XXXlist0[istate],oplist[PO])
-            if databit==0:
-                if stateparity==complement_mean_parity:
-                    score+=1
-                elif stateparity==(1-complement_mean_parity):
-                    score-=1
-            else:
-                if stateparity==(1-complement_mean_parity):
-                    score+=1
-                elif stateparity==complement_mean_parity:
-                    score-=1
-        state_score[istate]=score
-
-    state_score[-1] = 0
-
-    ################
-
-    scored_states=[[XXXlist0[istate],pre_scored_states[istate][1]+score] for istate,score in enumerate(state_score)]
-    return scored_states
+#def score_states_quick(pre_scored_states,precalculations,precalculations_alpha,data=data,nqubit=nqubit,op_to_index_dict=op_to_index_dict,oplist=oplist):
+#
+#    XXXlist0 = [state[0] for state in pre_scored_states]
+#
+#    contextlist0 = precalculations[0]
+#    PO_count = precalculations[1]
+#    which_POs_appear_wcouple = precalculations[2]
+#    POs_appear_wcouple = precalculations[3]
+#    whichcontextPOs_appear_wcouple = precalculations[4]
+#    position_contextPOs_wcouple = precalculations[5]
+#    ################
+#
+#
+#    #Code dependent on the alphas
+#    ################
+#    #For each state in the selection: Calculate the parities of the POs which appear with their couple
+#    parities_wcouple=precalculations_alpha[0]
+#    global_parities=precalculations_alpha[1]
+#
+#    #Score each state based on the number of POs that appear with their couple with a parity favorable to the data,
+#    #using the current majority of the PO couple.
+#    state_score=[None]*len(contextlist0)
+#    for istate,which_appear in enumerate(whichcontextPOs_appear_wcouple):
+#        score=0
+#        for iappear,PO in enumerate(which_appear):
+#            if PO%2==0:
+#                complement_mean_parity=round_z(mean_z(global_parities[PO+1]))
+#                databit=data[int(PO/2)]
+#            else:
+#                complement_mean_parity=round_z(mean_z(global_parities[PO-1]))
+#                databit=data[int((PO-1)/2)]
+#
+#            stateparity=parities_wcouple[istate][iappear][1]
+#            if databit==0:
+#                if stateparity==complement_mean_parity:
+#                    score+=1
+#                elif stateparity==(1-complement_mean_parity):
+#                    score-=1
+#            else:
+#                if stateparity==(1-complement_mean_parity):
+#                    score+=1
+#                elif stateparity==complement_mean_parity:
+#                    score-=1
+#        state_score[istate]=score
+#
+#    ################
+#
+#    scored_states = [[XXXlist0[istate],score] for istate,score in enumerate(state_score)]
+#    return scored_states
+#
+#def score_states_quicker(pre_scored_states,precalculations,precalculations_alpha,data=data,nqubit=nqubit,op_to_index_dict=op_to_index_dict,oplist=oplist):
+#
+#    #This block is meant to be applied on the pre_scored_states that come out of _PROTO. The last state should have
+#    #the correct score already.
+#
+#    XXXlist0=[state[0] for state in pre_scored_states]
+#
+#    #Precalculations
+#    ################
+#    contextlist0=precalculations[0]
+#    PO_count=precalculations[1]
+#    which_POs_appear_wcouple=precalculations[2]
+#    POs_appear_wcouple=precalculations[3]
+#    whichcontextPOs_appear_wcouple=precalculations[4]
+#    position_contextPOs_wcouple=precalculations[5]
+#    newcomer_whichcontextPOs_appear_wcouple=precalculations[6]
+#    ################
+#
+#
+#    #Code dependent on the alphas
+#    ################
+#    #For each state in the selection: Calculate the parities of the POs which appear with their couple
+#    parities_wcouple=precalculations_alpha[0]
+#    global_parities=precalculations_alpha[1]
+#
+#    #Score each state based on the number of POs that appear with their couple with a parity favorable to the data,
+#    #using the current majority of the PO couple. HOWEVER, we skip the last state, as it was obtained elsewhere.
+#    state_score=[None]*len(contextlist0)
+#    for istate,which_appear in enumerate(newcomer_whichcontextPOs_appear_wcouple[:-1]):
+#        score=0
+#        for iappear,PO in enumerate(which_appear):
+#            if PO%2==0:
+#                complement_mean_parity=round_z(mean_zz(global_parities[PO+1]))
+#                databit=data[int(PO/2)]
+#            else:
+#                complement_mean_parity=round_z(mean_zz(global_parities[PO-1]))
+#                databit=data[int((PO-1)/2)]
+#
+#            stateparity=parityanalytic(XXXlist0[istate],oplist[PO])
+#            if databit==0:
+#                if stateparity==complement_mean_parity:
+#                    score+=1
+#                elif stateparity==(1-complement_mean_parity):
+#                    score-=1
+#            else:
+#                if stateparity==(1-complement_mean_parity):
+#                    score+=1
+#                elif stateparity==complement_mean_parity:
+#                    score-=1
+#        state_score[istate]=score
+#
+#    state_score[-1] = 0
+#
+#    ################
+#
+#    scored_states=[[XXXlist0[istate],pre_scored_states[istate][1]+score] for istate,score in enumerate(state_score)]
+#    return scored_states
 
 def score_gen(missing_pos_beta,gen_beta):
     score=0
