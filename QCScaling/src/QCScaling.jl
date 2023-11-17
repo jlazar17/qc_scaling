@@ -63,20 +63,30 @@ function score(
 )
     nqubit = length(state.generator)
     undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
+
     base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
     cxt = Context(state.generator, base_cxt)
+    p = sortperm(QCScaling.to_index(cxt))
+    pos_sorted = cxt.pos[p]
+    
+    stepper = 1
+    next_undefined = undefined_idxs[stepper]
+
     score = 0
-    for po in cxt
-        if ((po.index+1) ÷ 2) in undefined_idxs || po.index==3^nqubit
-            continue
-        end
-        companion = po.index % 2==0 ? 1 : -1
+    for po in cxt.pos[p]
+           reduced_idx = (po.index+1) ÷ 2
+           while reduced_idx > next_undefined && stepper < length(undefined_idxs)
+               stepper += 1
+               next_undefined = undefined_idxs[stepper]
+           end
+           if reduced_idx==next_undefined || po.index==3^nqubit
+               continue
+           end
+        companion = po.index % 2==1 ? 1 : -1
         p = parity(state, po)
-        if p==0.5
-            continue
-        end
+        @assert p in [0,1]
         predicted_bit = abs(p - rep[po.index + companion])
-        diff = predicted_bit==goal[(po.index+1) ÷ 2] ? 1 : -1
+        diff = predicted_bit==goal[reduced_idx] ? 1 : -1
         score += diff
     end
     return score
@@ -95,7 +105,6 @@ function score_states(
     scores = Int[]
     idx=1
     for state in states
-        println(idx)
         idx+=1
         score = 0
         base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
