@@ -3,6 +3,7 @@ module QCScaling
 export ParityOperator
 
 using ProgressBars
+using StatsBase
 
 include("./parity_observable.jl")
 include("./contexts.jl")
@@ -37,20 +38,32 @@ function calculate_representation(states::Vector{PseudoGHZState}, even_base_cxt:
         representation[idxs] .+= parity(state, cxt)
         ctr[idxs] .+= 1
     end
-    return round.(representation ./ ctr)
+    rep = representation ./ ctr
+    rep[rep.==0.5] .= NaN
+    return round.(rep), findall(ctr.==0)
 end
 
+function score(
+    states::Vector{PseudoGHZState},
+    rep::Vector,
+    goal::Vector{Int},
+    even_base_cxt::Context,
+    odd_base_cxt::Context
+)
+    scores = Int[]
+    for state in ProgressBar(states)
+        push!(scores, score(state, rep, goal, even_base_cxt, odd_base_cxt))
+    end
+    return scores
+end
 function score(
     states::Vector{PseudoGHZState},
     goal::Vector{Int},
     even_base_cxt::Context,
     odd_base_cxt::Context
 )
-    rep = QCScaling.calculate_representation(states, even_base_cxt, odd_base_cxt)
-    scores = Int[]
-    for state in ProgressBar(states)
-        push!(scores, score(state, rep, goal, even_base_cxt, odd_base_cxt))
-    end
+    rep, _ = QCScaling.calculate_representation(states, even_base_cxt, odd_base_cxt)
+    scores = score(states, rep, goal, even_base_cxt, odd_base_cxt)
     return scores
 end
 
@@ -92,40 +105,67 @@ function score(
     return score
 end
     
-
-function score_states(
-    states::Vector{PseudoGHZState},
-    goal::Vector{Int},
-    even_base_cxt::Context,
-    odd_base_cxt::Context
-)
-    nqubit = length(first(states).generator)
-    rep = calculate_representation(states, even_base_cxt, odd_base_cxt)
-    undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
-    scores = Int[]
-    idx=1
-    for state in states
-        idx+=1
-        score = 0
-        base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
-        cxt = Context(state.generator, base_cxt)
-        for po in cxt
-            if ((po.index+1) ÷ 2) in undefined_idxs || po.index==3^nqubit
-                continue
-            end
-            companion = po.index % 2==0 ? 1 : -1
-            p = parity(state, po)
-            if p==0.5
-                continue
-            end
-
-            predicted_bit = xor(Int(p), Int(rep[po.index + companion]))
-            diff = predicted_bit==goal[(po.index+1) ÷ 2] ? 1 : -1
-            score += diff
+function find_missing_βs(rep::Vector)
+    βs = Vector{Int}[]
+    nqubit = Int(round(log(3, length(rep))))
+    for index in ProgressBar(findall(isnan.(rep)))
+        if index==3^nqubit
+            continue
         end
-        push!(scores, score)
+        β = QCScaling.to_ternary(index)
+        if length(β) < nqubit
+            β = vcat(zeros(Int, nqubit - length(β)), β)
+        end
+        push!(βs, β)
     end
-    return scores
+    return βs
+end
+
+function good_β(missing_βs)
+    nqubit = length(first(missing_βs))
+    println(maximum([length(x) for x in missing_βs]))
+    a = [[0,0,0] for _ in 1:nqubit]
+    for missing_β in missing_βs
+        for (idx, β) in enumerate(missing_β)
+            a[idx][β+1] += 1
+        end
+    end
+    return argmin.(a) .- 1
+end
+
+function get_new_generators(rep::Vector; nnew::Int=50, ntries::Int=200, nchange::Int=7)
+    missing_βs = find_missing_βs(rep)
+    nqubit = length(first(missing_βs))
+    pos, scores = ParityOperator[], Int[]
+    good_beta = good_β(missing_βs)
+    for _ in 1:ntries
+        dummy = copy(good_beta)
+        dummy[sample(1:nqubit, nchange; replace=false)] .= sample(0:2, nchange)
+        po = ParityOperator(dummy)
+        score = score_parity_operator(po, missing_βs)
+        if length(pos) >= nnew && score < minimum(scores)
+            continue
+        end
+        push!(pos, po)
+        push!(scores, score)
+        p = sortperm(-1 .* scores)
+        scores, pos = scores[p], pos[p]
+        if length(scores) > nnew
+            scores, pos = scores[1:nnew], pos[1:nnew]
+        end
+    end
+    return scores, pos
+end
+
+function score_parity_operator(po::ParityOperator, missing_βs)
+    score = 0
+    for missing_β in missing_βs
+        if any(po.βs.==missing_β)
+            continue
+        end
+        score += 1
+    end
+    return score
 end
 
 end # module QCScaling
