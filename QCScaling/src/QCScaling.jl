@@ -27,20 +27,24 @@ function parity(state::PseudoGHZState, cxt::Context) :: Vector{Float64}
     parity.(Ref(state), cxt)
 end
 
-function calculate_representation(states::Vector{PseudoGHZState}, even_base_cxt::Context, odd_base_cxt::Context)
+function calculate_representation(
+    states::Vector{PseudoGHZState},
+    even_base_cxt::Context,
+    odd_base_cxt::Context
+)
     nqubit = length(first(states).generator)
     representation = zeros(3 ^ nqubit)
-    ctr = zeros(3 ^ nqubit)
+    ctr = zeros(Int, 3 ^ nqubit)
     for state in states
         base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
         cxt = Context(state.generator, base_cxt)
-        idxs = [po.index for po in cxt]
+        idxs = map(po->po.index, cxt.pos)
         representation[idxs] .+= parity(state, cxt)
         ctr[idxs] .+= 1
     end
     rep = representation ./ ctr
     rep[rep.==0.5] .= NaN
-    return round.(rep), findall(ctr.==0)
+    return round.(rep)
 end
 
 function score(
@@ -56,13 +60,14 @@ function score(
     end
     return scores
 end
+
 function score(
     states::Vector{PseudoGHZState},
     goal::Vector{Int},
     even_base_cxt::Context,
     odd_base_cxt::Context
 )
-    rep, _ = QCScaling.calculate_representation(states, even_base_cxt, odd_base_cxt)
+    rep = calculate_representation(states, even_base_cxt, odd_base_cxt)
     scores = score(states, rep, goal, even_base_cxt, odd_base_cxt)
     return scores
 end
@@ -84,17 +89,18 @@ function score(
     
     stepper = 1
     next_undefined = undefined_idxs[stepper]
-
     score = 0
     for po in cxt.pos[p]
-           reduced_idx = (po.index+1) ÷ 2
-           while reduced_idx > next_undefined && stepper < length(undefined_idxs)
-               stepper += 1
-               next_undefined = undefined_idxs[stepper]
-           end
-           if reduced_idx==next_undefined || po.index==3^nqubit
-               continue
-           end
+        # We actually do not care about this since it is "extra"
+        if po.index==3^nqubit
+            continue
+        end
+        # Find where on goal this PO maps
+        reduced_idx = (po.index+1) ÷ 2
+        
+        if reduced_idx in undefined_idxs
+            continue
+        end
         companion = po.index % 2==1 ? 1 : -1
         p = parity(state, po)
         @assert p in [0,1]
@@ -123,7 +129,7 @@ end
 
 function good_β(missing_βs)
     nqubit = length(first(missing_βs))
-    println(maximum([length(x) for x in missing_βs]))
+    # preallocate an array of X,Y,Z for each qubit
     a = [[0,0,0] for _ in 1:nqubit]
     for missing_β in missing_βs
         for (idx, β) in enumerate(missing_β)

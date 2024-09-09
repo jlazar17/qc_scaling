@@ -1,7 +1,7 @@
 struct PseudoGHZState
-    theta_s::UInt8
-    theta_z::UInt8
-    alphas::Vector{UInt8}
+    theta_s::Int
+    theta_z::Int
+    alphas::Vector{Int}
     generator::ParityOperator
     function PseudoGHZState(theta_s, theta_z, alphas, generator)
         @assert (length(alphas) + 1 == length(generator))
