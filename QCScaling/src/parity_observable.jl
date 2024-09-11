@@ -2,7 +2,7 @@ struct ParityOperator
     βs::Vector{Int}
     index::Int
     function ParityOperator(βs::Vector{Int}, index::Int)
-        @assert length(βs) % 2==0 "Odd number of betas"
+        @assert length(βs) % 2==0 "Odd number of betas: $(βs)"
         @assert all(βs .<= 2) "Some betas are not in <2> $(βs) $(index)"
         @assert index <= 3 ^ length(βs) "Index is too big"
         return new(βs, index)
@@ -21,6 +21,14 @@ end
 
 # Doing this basis change every time might involve some overhead.
 # Be sure to check if that is killing us
+function ParityOperator(index::Int, nqubit::Int)
+    βs = QCScaling.to_ternary(index)
+    if length(βs) < nqubit
+        βs = vcat(zeros(Int, nqubit - length(βs)), βs)
+    end
+    return ParityOperator(βs, index)
+end
+
 function ParityOperator(βs::Vector{Int})
     index = to_index(βs)
     return ParityOperator(βs, index)
