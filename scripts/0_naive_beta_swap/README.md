@@ -1,9 +1,7 @@
 # Usage
 
 Minimal usage. In this case the number of states will be equal to
-$$
-3\times \frac{3^{n_{\mathrm{qubit}}}}{2^{n_{\mathrm{qubit}}-1}+1}
-$$
+$$3\times \frac{3^{n_{\mathrm{qubit}}}}{2^{n_{\mathrm{qubit}}-1}+1}$$
 
 ```bash
 nqubit=8
