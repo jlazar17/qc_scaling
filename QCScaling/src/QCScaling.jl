@@ -52,10 +52,15 @@ function score(
     rep::Vector,
     goal::Vector{Int},
     even_base_cxt::Context,
-    odd_base_cxt::Context
+    odd_base_cxt::Context;
+    track=true
 )
     scores = Int[]
-    for state in ProgressBar(states)
+    itr = states
+    if track
+        itr = ProgressBar(itr)
+    end
+    for state in itr
         push!(scores, score(state, rep, goal, even_base_cxt, odd_base_cxt))
     end
     return scores
@@ -114,7 +119,8 @@ end
 function find_missing_βs(rep::Vector)
     βs = Vector{Int}[]
     nqubit = Int(round(log(3, length(rep))))
-    for index in ProgressBar(findall(isnan.(rep)))
+    for index in findall(isnan.(rep))
+    #for index in ProgressBar(findall(isnan.(rep)))
         if index==3^nqubit
             continue
         end
@@ -139,29 +145,44 @@ function good_β(missing_βs)
     return argmin.(a) .- 1
 end
 
-function get_new_generators(rep::Vector; nnew::Int=50, ntries::Int=200, nchange::Int=7)
-    missing_βs = find_missing_βs(rep)
-    nqubit = length(first(missing_βs))
-    pos, scores = ParityOperator[], Int[]
-    good_beta = good_β(missing_βs)
-    for _ in 1:ntries
-        dummy = copy(good_beta)
-        dummy[sample(1:nqubit, nchange; replace=false)] .= sample(0:2, nchange)
-        po = ParityOperator(dummy)
-        score = score_parity_operator(po, missing_βs)
-        if length(pos) >= nnew && score < minimum(scores)
-            continue
-        end
-        push!(pos, po)
-        push!(scores, score)
-        p = sortperm(-1 .* scores)
-        scores, pos = scores[p], pos[p]
-        if length(scores) > nnew
-            scores, pos = scores[1:nnew], pos[1:nnew]
-        end
+function get_new_generators(states::Vector, rep::Vector, base_even, base_odd, nnew)
+    counter = zeros(length(rep))
+    nqubit = length(first(base_even))
+    pos = ParityOperator[]
+    for state in states
+        base_cxt = state.theta_s==0 ? base_even : base_odd
+        idxs =  map(x->x.index, QCScaling.Context(state.generator, base_cxt))
+        counter[idxs] .+= 1
     end
-    return scores, pos
+    weights = Weights(maximum(counter) .- counter)
+    chosen_idxs = sample(0:length(rep)-1, weights, nnew, replace=false)
+    pos = ParityOperator.(chosen_idxs, nqubit)
+    return pos
 end
+
+#function get_new_generators(rep::Vector; nnew, ntries::Int=200, nchange::Int=7)
+#    missing_βs = find_missing_βs(rep)
+#    nqubit = length(first(missing_βs))
+#    pos, scores = ParityOperator[], Int[]
+#    good_beta = good_β(missing_βs)
+#    for _ in 1:ntries
+#        dummy = copy(good_beta)
+#        dummy[sample(1:nqubit, nchange; replace=false)] .= sample(0:2, nchange)
+#        po = ParityOperator(dummy)
+#        score = score_parity_operator(po, missing_βs)
+#        if length(pos) >= nnew && score < minimum(scores)
+#            continue
+#        end
+#        push!(pos, po)
+#        push!(scores, score)
+#        p = sortperm(-1 .* scores)
+#        scores, pos = scores[p], pos[p]
+#        if length(scores) > nnew
+#            scores, pos = scores[1:nnew], pos[1:nnew]
+#        end
+#    end
+#    return pos
+#end
 
 function score_parity_operator(po::ParityOperator, missing_βs)
     score = 0
