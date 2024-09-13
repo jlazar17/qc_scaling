@@ -92,8 +92,8 @@ function score(
     p = sortperm(QCScaling.to_index(cxt))
     pos_sorted = cxt.pos[p]
     
-    stepper = 1
-    next_undefined = undefined_idxs[stepper]
+    #stepper = 1
+    #next_undefined = undefined_idxs[stepper]
     score = 0
     for po in cxt.pos[p]
         # We actually do not care about this since it is "extra"
@@ -116,34 +116,34 @@ function score(
     return score
 end
     
-function find_missing_βs(rep::Vector)
-    βs = Vector{Int}[]
-    nqubit = Int(round(log(3, length(rep))))
-    for index in findall(isnan.(rep))
-    #for index in ProgressBar(findall(isnan.(rep)))
-        if index==3^nqubit
-            continue
-        end
-        β = QCScaling.to_ternary(index)
-        if length(β) < nqubit
-            β = vcat(zeros(Int, nqubit - length(β)), β)
-        end
-        push!(βs, β)
-    end
-    return βs
-end
+#function find_missing_βs(rep::Vector)
+#    βs = Vector{Int}[]
+#    nqubit = Int(round(log(3, length(rep))))
+#    for index in findall(isnan.(rep))
+#    #for index in ProgressBar(findall(isnan.(rep)))
+#        if index==3^nqubit
+#            continue
+#        end
+#        β = QCScaling.to_ternary(index)
+#        if length(β) < nqubit
+#            β = vcat(zeros(Int, nqubit - length(β)), β)
+#        end
+#        push!(βs, β)
+#    end
+#    return βs
+#end
 
-function good_β(missing_βs)
-    nqubit = length(first(missing_βs))
-    # preallocate an array of X,Y,Z for each qubit
-    a = [[0,0,0] for _ in 1:nqubit]
-    for missing_β in missing_βs
-        for (idx, β) in enumerate(missing_β)
-            a[idx][β+1] += 1
-        end
-    end
-    return argmin.(a) .- 1
-end
+#function good_β(missing_βs)
+#    nqubit = length(first(missing_βs))
+#    # preallocate an array of X,Y,Z for each qubit
+#    a = [[0,0,0] for _ in 1:nqubit]
+#    for missing_β in missing_βs
+#        for (idx, β) in enumerate(missing_β)
+#            a[idx][β+1] += 1
+#        end
+#    end
+#    return argmin.(a) .- 1
+#end
 
 function get_new_generators(states::Vector, rep::Vector, base_even, base_odd, nnew)
     counter = zeros(length(rep))
@@ -158,6 +158,14 @@ function get_new_generators(states::Vector, rep::Vector, base_even, base_odd, nn
     chosen_idxs = sample(0:length(rep)-1, weights, nnew, replace=false)
     pos = ParityOperator.(chosen_idxs, nqubit)
     return pos
+end
+
+"""
+    Find the desired direction for a PO to move based on current representation
+    [0.7, 0.3, ...] -> [1, 0, 1, 0, 1, 0, 1, NaN, 1]
+"""
+function companion_goal(po::ParityOperator, goal::Vector, rep::Vector)
+
 end
 
 #function get_new_generators(rep::Vector; nnew, ntries::Int=200, nchange::Int=7)
@@ -184,15 +192,15 @@ end
 #    return pos
 #end
 
-function score_parity_operator(po::ParityOperator, missing_βs)
-    score = 0
-    for missing_β in missing_βs
-        if any(po.βs.==missing_β)
-            continue
-        end
-        score += 1
-    end
-    return score
-end
+#function score_parity_operator(po::ParityOperator, missing_βs)
+#    score = 0
+#    for missing_β in missing_βs
+#        if any(po.βs.==missing_β)
+#            continue
+#        end
+#        score += 1
+#    end
+#    return score
+#end
 
 end # module QCScaling
