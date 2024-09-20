@@ -28,3 +28,5 @@ function random_state(nqubit::Int, n::Int)
     end
     return states
 end
+
+Base.length(state::PseudoGHZState) = length(state.generator)
