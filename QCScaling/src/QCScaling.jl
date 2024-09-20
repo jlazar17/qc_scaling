@@ -8,6 +8,7 @@ using StatsBase
 include("./parity_observable.jl")
 include("./contexts.jl")
 include("./states.jl")
+include("./fingerprint.jl")
 
 function parity(state::PseudoGHZState, measurement_po::ParityOperator) :: Float64
     beta_diff = mod.(state.generator.βs - measurement_po.βs, 3)
@@ -92,8 +93,6 @@ function score(
     p = sortperm(QCScaling.to_index(cxt))
     pos_sorted = cxt.pos[p]
     
-    #stepper = 1
-    #next_undefined = undefined_idxs[stepper]
     score = 0
     for po in cxt.pos[p]
         # We actually do not care about this since it is "extra"
@@ -115,35 +114,6 @@ function score(
     end
     return score
 end
-    
-#function find_missing_βs(rep::Vector)
-#    βs = Vector{Int}[]
-#    nqubit = Int(round(log(3, length(rep))))
-#    for index in findall(isnan.(rep))
-#    #for index in ProgressBar(findall(isnan.(rep)))
-#        if index==3^nqubit
-#            continue
-#        end
-#        β = QCScaling.to_ternary(index)
-#        if length(β) < nqubit
-#            β = vcat(zeros(Int, nqubit - length(β)), β)
-#        end
-#        push!(βs, β)
-#    end
-#    return βs
-#end
-
-#function good_β(missing_βs)
-#    nqubit = length(first(missing_βs))
-#    # preallocate an array of X,Y,Z for each qubit
-#    a = [[0,0,0] for _ in 1:nqubit]
-#    for missing_β in missing_βs
-#        for (idx, β) in enumerate(missing_β)
-#            a[idx][β+1] += 1
-#        end
-#    end
-#    return argmin.(a) .- 1
-#end
 
 function get_new_generators(states::Vector, rep::Vector, base_even, base_odd, nnew)
     counter = zeros(length(rep))
@@ -165,42 +135,24 @@ end
     [0.7, 0.3, ...] -> [1, 0, 1, 0, 1, 0, 1, NaN, 1]
 """
 function companion_goal(po::ParityOperator, goal::Vector, rep::Vector)
-
+    # Find what direction each po should move, if any
 end
 
-#function get_new_generators(rep::Vector; nnew, ntries::Int=200, nchange::Int=7)
-#    missing_βs = find_missing_βs(rep)
-#    nqubit = length(first(missing_βs))
-#    pos, scores = ParityOperator[], Int[]
-#    good_beta = good_β(missing_βs)
-#    for _ in 1:ntries
-#        dummy = copy(good_beta)
-#        dummy[sample(1:nqubit, nchange; replace=false)] .= sample(0:2, nchange)
-#        po = ParityOperator(dummy)
-#        score = score_parity_operator(po, missing_βs)
-#        if length(pos) >= nnew && score < minimum(scores)
-#            continue
-#        end
-#        push!(pos, po)
-#        push!(scores, score)
-#        p = sortperm(-1 .* scores)
-#        scores, pos = scores[p], pos[p]
-#        if length(scores) > nnew
-#            scores, pos = scores[1:nnew], pos[1:nnew]
-#        end
-#    end
-#    return pos
-#end
+function companion_goal(cxt::Context, goal::Vector, rep::Vector)
+    # broadcast accross all POs in context
+    # [f(state) for state in context.states]
+    # f(context)
+end
 
-#function score_parity_operator(po::ParityOperator, missing_βs)
-#    score = 0
-#    for missing_β in missing_βs
-#        if any(po.βs.==missing_β)
-#            continue
-#        end
-#        score += 1
-#    end
-#    return score
-#end
+function pick_new_alphas(cxt::Context, goal::Vector, rep::Vector)
+    cg = companion_goal(cxt, goal, rep)
+    # hamming_distance = cg - fingerprint
+    # Pick alpha by which one is the closest.
+    # Down the line, we could explore reordering the fingerprint so that
+    # close parities are nearby and we don't need to scan all of them
+    # idx = argmin(hamming_distance)
+    # Could also do non-deterministic sampling with hamming_distance
+    # return alphas[idx]
+end
 
 end # module QCScaling
