@@ -1,15 +1,17 @@
 struct Context
     pos::Vector{ParityOperator}
-    function Context(pos)
+    parity::Int
+    function Context(pos, parity)
         nqubit = length(first(pos))
+        @assert parity in [0, 1]
         @assert length(pos)==(2^(nqubit -1) + 1) "Not the right number of POs"
-        return new(pos)
+        return new(pos, parity)
     end
 end
 
 function Context(generator::ParityOperator, base_cxt::Context)
     pos = [generator + po for po in base_cxt.pos]
-    return Context(pos)
+    return Context(pos, base_cxt.parity)
 end
 
 Base.iterate(cxt::Context, idx::Int) = iterate(cxt.pos, idx)
@@ -48,5 +50,5 @@ function generate_base_context(nqubit::Int, evenoddbit::Int)
         end
         push!(pos, ParityOperator(βs))
     end
-    return Context(pos)
+    return Context(pos, evenoddbit)
 end

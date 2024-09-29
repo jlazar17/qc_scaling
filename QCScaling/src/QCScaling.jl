@@ -9,60 +9,67 @@ include("./parity_observable.jl")
 include("./contexts.jl")
 include("./states.jl")
 include("./fingerprint.jl")
+include("./parities.jl")
 
-function parity(state::PseudoGHZState, measurement_po::ParityOperator) :: Float64
-    beta_diff = mod.(state.generator.βs - measurement_po.βs, 3)
-    J = 1 .- mod.((beta_diff .- 1), 2)
-    if all(beta_diff .== 0)
-        return mod(sum(state.alphas), 2)
-    elseif any(beta_diff .== 0)
-        return 0.5
-    elseif mod(sum(J) + state.theta_s, 2) == 1
-        return 0.5
-    else
-        return mod(state.theta_z + (sum(J) + state.theta_s) // 2 + sum(J[1:end-1] .* state.alphas), 2)
-    end
+function get_goal_index(po::ParityOperator)
+    goal_index = (po.index+1) ÷ 2
+    return goal_index
 end
 
-function parity(state::PseudoGHZState, cxt::Context) :: Vector{Float64}
-    parity.(Ref(state), cxt)
+function get_companion_index(po::ParityOperator)
+    return po.index % 2==1 ? po.index + 1 : po.index - 1
 end
 
-function calculate_representation(
+function calculate_preference(
     states::Vector{PseudoGHZState},
-    even_base_cxt::Context,
-    odd_base_cxt::Context
+    base_even::Context,
+    base_odd::Context
 )
-    nqubit = length(first(states).generator)
+    nqubit = length(first(states))
     representation = zeros(3 ^ nqubit)
     ctr = zeros(Int, 3 ^ nqubit)
     for state in states
-        base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
+        base_cxt = state.theta_s==0 ? base_even : base_odd
         cxt = Context(state.generator, base_cxt)
         idxs = map(po->po.index, cxt.pos)
         representation[idxs] .+= parity(state, cxt)
         ctr[idxs] .+= 1
     end
-    rep = representation ./ ctr
-    rep[rep.==0.5] .= NaN
-    return round.(rep)
+    pref = representation ./ ctr
+    return pref
+end
+
+function calculate_representation(
+    states::Vector{PseudoGHZState},
+    base_even::Context,
+    base_odd::Context
+)
+    pref = calculate_preference(states, base_even, base_odd)
+    pref[pref.==0.5] .= NaN
+    rep = round.(pref)
+    return rep
+end
+
+function calculate_representation(
+    states::Vector{PseudoGHZState},
+)
+    nqubit = length(first(states))
+    base_even = generate_base_context(nqubit, 0)
+    base_odd = generate_base_context(nqubit, 1)
+    return calculate_representation(states, base_even, base_odd)
 end
 
 function score(
     states::Vector{PseudoGHZState},
     rep::Vector,
     goal::Vector{Int},
-    even_base_cxt::Context,
-    odd_base_cxt::Context;
-    track=true
+    base_even::Context,
+    base_odd::Context;
 )
     scores = Int[]
     itr = states
-    if track
-        itr = ProgressBar(itr)
-    end
     for state in itr
-        push!(scores, score(state, rep, goal, even_base_cxt, odd_base_cxt))
+        push!(scores, score(state, rep, goal, base_even, base_odd))
     end
     return scores
 end
@@ -70,11 +77,11 @@ end
 function score(
     states::Vector{PseudoGHZState},
     goal::Vector{Int},
-    even_base_cxt::Context,
-    odd_base_cxt::Context
+    base_even::Context,
+    base_odd::Context
 )
-    rep = calculate_representation(states, even_base_cxt, odd_base_cxt)
-    scores = score(states, rep, goal, even_base_cxt, odd_base_cxt)
+    rep = calculate_representation(states, base_even, base_odd)
+    scores = score(states, rep, goal, base_even, base_odd)
     return scores
 end
 
@@ -82,13 +89,13 @@ function score(
     state::PseudoGHZState,
     rep::Vector{Float64},
     goal::Vector{Int},
-    even_base_cxt::Context,
-    odd_base_cxt::Context
+    base_even::Context,
+    base_odd::Context
 )
     nqubit = length(state.generator)
     undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
 
-    base_cxt = state.theta_s==0 ? even_base_cxt : odd_base_cxt
+    base_cxt = state.theta_s==0 ? base_even : base_odd
     cxt = Context(state.generator, base_cxt)
     p = sortperm(QCScaling.to_index(cxt))
     pos_sorted = cxt.pos[p]
@@ -100,28 +107,33 @@ function score(
             continue
         end
         # Find where on goal this PO maps
-        reduced_idx = (po.index+1) ÷ 2
+        reduced_idx = get_goal_index(po)
         
         if reduced_idx in undefined_idxs
             continue
         end
-        companion = po.index % 2==1 ? 1 : -1
+        companion_idx = get_companion_index(po) 
         p = parity(state, po)
         @assert p in [0,1]
-        predicted_bit = abs(p - rep[po.index + companion])
+        predicted_bit = abs(p - rep[companion_idx])
         diff = predicted_bit==goal[reduced_idx] ? 1 : -1
         score += diff
     end
     return score
 end
 
-function get_new_generators(states::Vector, rep::Vector, base_even, base_odd, nnew)
-    counter = zeros(length(rep))
+function get_new_generators(
+    states::Vector,
+    rep::Vector,
+    base_even::Context,
+    base_odd::Context,
+    nnew::Int
+)::Vector{ParityOperator}
+    counter = zeros(Int, length(rep))
     nqubit = length(first(base_even))
-    pos = ParityOperator[]
     for state in states
         base_cxt = state.theta_s==0 ? base_even : base_odd
-        idxs =  map(x->x.index, QCScaling.Context(state.generator, base_cxt))
+        idxs =  map(x->x.index, Context(state.generator, base_cxt))
         counter[idxs] .+= 1
     end
     weights = Weights(maximum(counter) .- counter)
@@ -135,24 +147,35 @@ end
     [0.7, 0.3, ...] -> [1, 0, 1, 0, 1, 0, 1, NaN, 1]
 """
 function companion_goal(po::ParityOperator, goal::Vector, rep::Vector)
-    # Find what direction each po should move, if any
+    if po.index==length(rep)
+        return NaN
+    end
+    companion_idx = po.index % 2==1 ? po.index + 1 : po.index - 1
+    if isnan(rep[companion_idx])
+        return NaN
+    end
+    goal_index = get_goal_index(po)
+    cg = goal[goal_index]==1 ? 1 - rep[companion_idx] : rep[companion_idx]
+    return cg
 end
 
 function companion_goal(cxt::Context, goal::Vector, rep::Vector)
-    # broadcast accross all POs in context
-    # [f(state) for state in context.states]
-    # f(context)
+    return companion_goal.(cxt.pos, Ref(goal), Ref(rep))
 end
 
-function pick_new_alphas(cxt::Context, goal::Vector, rep::Vector)
+function pick_new_alphas(
+    cxt::Context,
+    goal::Vector,
+    rep::Vector,
+    fingerprint::Fingerprint,
+    base_cxt::Context
+)
     cg = companion_goal(cxt, goal, rep)
-    # hamming_distance = cg - fingerprint
-    # Pick alpha by which one is the closest.
-    # Down the line, we could explore reordering the fingerprint so that
-    # close parities are nearby and we don't need to scan all of them
-    # idx = argmin(hamming_distance)
-    # Could also do non-deterministic sampling with hamming_distance
-    # return alphas[idx]
+    hamming_distance = abs.(fingerprint.a[:, base_cxt.parity+1, :, :] .- cg)
+    nan_mask = isnan.(hamming_distance)
+    hamming_distance[nan_mask] .= 0
+    where = argmin(sum(hamming_distance, dims=1))
+    return (base_cxt.parity, where[2]-1, idx_to_alphas(where[3]-1, length(cxt.pos[1])))
 end
 
 end # module QCScaling

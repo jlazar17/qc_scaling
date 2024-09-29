@@ -10,6 +10,7 @@ struct ParityOperator
 end
 
 function to_index(βs::Vector{Int})
+    #return sum([3^exp for exp in 0:length(βs)-1] .* βs) + 1
     idx = 1
     exp = 0
     for x in reverse(βs)

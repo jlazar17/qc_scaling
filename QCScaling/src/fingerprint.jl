@@ -46,10 +46,10 @@ function Base.:-(fp::Fingerprint, v::Vector)
     return fp.a .- v
 end
 
-function (fp::Fingerprint)(state::PseudoGHZState)
+function Base.getindex(fp::Fingerprint, state::PseudoGHZState)
     theta_s = state.theta_s
     theta_z = state.theta_z
     nqubit = length(state)
     idx = sum([2^n for n in 0:nqubit-2] .* state.alphas)
-    return fp.a[:, theta_s+1, theta_z+1, idx]
+    return fp.a[:, theta_s+1, theta_z+1, idx+1]
 end
