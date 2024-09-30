@@ -410,7 +410,15 @@ def perturb_precalculate(
 
     return precalculations1
 
-def precalculate_alpha(scored_states,precalculations,data=data,nqubit=nqubit,op_to_index_dict=op_to_index_dict,oplist=oplist,patterns64x64=patterns64x64):
+def precalculate_alpha(
+    scored_states,
+    precalculations,
+    data=data,
+    nqubit=nqubit,
+    op_to_index_dict=op_to_index_dict,
+    oplist=oplist,
+    patterns64x64=patterns64x64
+):
 #Code dependent on the alphas
 
     XXXlist0=[state[0] for state in scored_states]
