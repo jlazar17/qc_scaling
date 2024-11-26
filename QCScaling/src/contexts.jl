@@ -14,6 +14,23 @@ function Context(generator::ParityOperator, base_cxt::Context)
     return Context(pos, base_cxt.parity)
 end
 
+struct ContextMaster
+    base_even::Context
+    base_odd::Context
+    nqubit::Int
+    function ContextMaster(base_even, base_odd, nqubit)
+        @assert length(base_even.pos)==(2^(nqubit -1) + 1) "Not the right number of POs"
+        @assert length(base_odd.pos)==(2^(nqubit -1) + 1) "Not the right number of POs"
+        return new(base_even, base_odd, nqubit)
+    end
+end
+
+function ContextMaster(nqubit::Int)
+    base_even = generate_base_context(nqubit, 0)
+    base_odd = generate_base_context(nqubit, 1)
+    return ContextMaster(base_even, base_odd, nqubit)
+end
+
 Base.iterate(cxt::Context, idx::Int) = iterate(cxt.pos, idx)
 Base.iterate(cxt::Context) = iterate(cxt.pos)
 Base.length(cxt::Context) = length(cxt.pos)
