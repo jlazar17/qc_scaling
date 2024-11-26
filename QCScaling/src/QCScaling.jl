@@ -63,13 +63,12 @@ function score(
     states::Vector{PseudoGHZState},
     rep::Vector,
     goal::Vector{Int},
-    base_even::Context,
-    base_odd::Context;
+    cxt_master::ContextMaster
 )
     scores = Int[]
     itr = states
     for state in itr
-        push!(scores, score(state, rep, goal, base_even, base_odd))
+        push!(scores, score(state, rep, goal, cxt_master))
     end
     return scores
 end
@@ -77,11 +76,10 @@ end
 function score(
     states::Vector{PseudoGHZState},
     goal::Vector{Int},
-    base_even::Context,
-    base_odd::Context
+    cxt_master::ContextMaster
 )
-    rep = calculate_representation(states, base_even, base_odd)
-    scores = score(states, rep, goal, base_even, base_odd)
+    rep = calculate_representation(states,cxt_master.base_even, cxt_master.base_odd)
+    scores = score(states, rep, goal, cxt_master)
     return scores
 end
 
@@ -89,13 +87,16 @@ function score(
     state::PseudoGHZState,
     rep::Vector{Float64},
     goal::Vector{Int},
-    base_even::Context,
-    base_odd::Context
+    cxt_master::ContextMaster
 )
-    nqubit = length(state.generator)
+    nqubit = cxt_master.nqubit
     undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
 
-    base_cxt = state.theta_s==0 ? base_even : base_odd
+    base_cxt = ifelse(
+        state.theta_s==0,
+        cxt_master.base_even,
+        cxt_master.base_odd
+    )
     cxt = Context(state.generator, base_cxt)
     p = sortperm(QCScaling.to_index(cxt))
     pos_sorted = cxt.pos[p]
@@ -122,24 +123,50 @@ function score(
     return score
 end
 
-function get_new_generators(
+function get_new_contexts(
     states::Vector,
     rep::Vector,
-    base_even::Context,
-    base_odd::Context,
+    cxt_master::ContextMaster,
     nnew::Int
-)::Vector{ParityOperator}
-    counter = zeros(Int, length(rep))
-    nqubit = length(first(base_even))
-    for state in states
-        base_cxt = state.theta_s==0 ? base_even : base_odd
-        idxs =  map(x->x.index, Context(state.generator, base_cxt))
-        counter[idxs] .+= 1
+)::Vector{Context}
+    counter = zeros(Int, 3^cxt_master.nqubit)
+    counter[isnan.(rep)] .= 1
+    ## Count how many times a po is covered
+    #for state in states
+    #    base_cxt = ifelse(
+    #        state.theta_s==0,
+    #        cxt_master.base_even,
+    #        cxt_master.base_odd
+    #    )
+    #    idxs =  map(x->x.index, Context(state.generator, base_cxt))
+    #    counter[idxs] .+= 1
+    #end
+    #@show counter
+    #@show findall(counter.==0)
+    # Look through every state and score them based on how much coverage there is
+    scores = zeros(Int, 3^cxt_master.nqubit)
+    # TODO look through even and odd
+    base_cxt = ifelse(
+        rand() > 0.5,
+        cxt_master.base_even,
+        cxt_master.base_odd
+    )
+    for idx in 1:3^cxt_master.nqubit
+        generator = ParityOperator(idx-1, cxt_master.nqubit)
+        cxt = Context(generator, base_cxt)
+        idxs =  map(x->x.index, Context(generator, base_cxt))
+        scores[idx] += sum(counter[idxs])
     end
-    weights = Weights(maximum(counter) .- counter)
-    chosen_idxs = sample(0:length(rep)-1, weights, nnew, replace=false)
-    pos = ParityOperator.(chosen_idxs, nqubit)
-    return pos
+    weights = Weights(maximum(scores) .- scores)
+    chosen_idxs = sample(0:3^cxt_master.nqubit-1, weights, nnew, replace=false)
+    pos = ParityOperator.(chosen_idxs, cxt_master.nqubit)
+    cxts = Context.(pos, Ref(base_cxt))
+    return cxts
+end
+
+function get_new_contexts(states::Vector, cxt_master::ContextMaster, nnew::Int)::Vector{Context}
+    rep = calculate_representation(states, cxt_master.base_even, cxt_master.base_odd)
+    return get_new_contexts(states, rep, cxt_master, nnew)
 end
 
 """
