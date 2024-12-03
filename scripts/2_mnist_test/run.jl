@@ -64,23 +64,29 @@ function parse_commandline()
     return parse_args(s)
 end
 
-function update_states(states, rep, nreplace, base_even, base_odd, nqubit, goal, fingerprint)
-    new_gens = QCScaling.get_new_generators(states, rep, base_even, base_odd, nreplace)
-    for (idx, gen) in enumerate(new_gens)
-        paritybit = rand(0:1)
-        base = paritybit==0 ? base_even : base_odd
-        cxt = QCScaling.Context(gen, base)
-        theta_s, theta_z, alphas = QCScaling.pick_new_alphas(
-            cxt,
-            goal,
-            rep,
-            fingerprint,
-            base
-        )
-        states[idx] = QCScaling.PseudoGHZState(theta_s, theta_z, alphas, gen)
-        #states[idx] = QCScaling.PseudoGHZState(rand(0:1), rand(0:1), rand(0:1, 7), gen)
+function pick_replacement_states(
+    states::Vector{QCScaling.PseudoGHZState},
+    cxt_master::QCScaling.ContextMaster,
+    nnew::Int
+)
+    counter = zeros(Int, 3^cxt_master.nqubit)
+    ## Count how many times a po is covered
+    for state in states
+        # This should be a function
+        base_cxt = ifelse(state.theta_s==0, cxt_master.base_even, cxt_master.base_odd)
+        idxs =  map(x->x.index, QCScaling.Context(state.generator, base_cxt))
+        counter[idxs] .+= 1
     end
-    return states
+    overlap = zeros(Int, size(states))
+    for (idx, state) in enumerate(states)
+        base_cxt = ifelse(state.theta_s==0, cxt_master.base_even, cxt_master.base_odd)
+        cxt = QCScaling.Context(state.generator, base_cxt)
+        idxs = map(x->x.index, cxt.pos)
+        overlap[idx] = sum(counter[idxs])
+    end
+    weights = Weights(overlap)
+    chosen_idxs = sample(1:length(states), weights, nnew, replace=false)
+    return chosen_idxs
 end
 
 function make_goal(args)
@@ -152,15 +158,16 @@ function main(args=nothing)
     outfile = setup_outfile(args)
     fingerprint = QCScaling.Fingerprint(nqubit)
     # Make the canonical base contexts. I think these should be packaged
-    base_even = QCScaling.generate_base_context(nqubit, 0)
-    base_odd = QCScaling.generate_base_context(nqubit, 1)
+    #base_even = QCScaling.generate_base_context(nqubit, 0)
+    #base_odd = QCScaling.generate_base_context(nqubit, 1)
+    cxt_master = QCScaling.ContextMaster(args["nqubit"])
 
     state_tracker = zeros(UInt8, (length(itr), length(states), 2nqubit + 1))
     n_same_dict = Dict()
 
     for idx in itr
         # Sort the states and scores by ascending score
-        scores = QCScaling.score(states, goal, base_even, base_odd)
+        scores = QCScaling.score(states, goal, cxt_master)
         sorter = sortperm(scores)
         scores = scores[sorter]
         states = states[sorter]
@@ -186,7 +193,7 @@ function main(args=nothing)
             whiches = sample(1:length(scores), ws, nreplace, replace=false)
             for which in whiches
                 worst_state = states[which]
-                base_cxt = worst_state.theta_s==0 ? base_even : base_odd
+                base_cxt = worst_state.theta_s==0 ? cxt_master.base_even : cxt_master.base_odd
                 cxt = QCScaling.Context(worst_state.generator, base_cxt)
                 x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
                 new_state = QCScaling.PseudoGHZState(x..., worst_state.generator)
@@ -194,13 +201,13 @@ function main(args=nothing)
             end
         else
             n_same_dict = Dict()
-            generators = QCScaling.get_new_generators(states, rep, base_even, base_odd, 5)
-            for (jdx, generator) in enumerate(generators)
-                theta_s = rand() < 0.5 ? 0 : 1
-                base_cxt = theta_s==0 ? base_even : base_odd
-                cxt = QCScaling.Context(generator, base_cxt)
-                x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
-                new_state = QCScaling.PseudoGHZState(x..., generator)
+            new_cxts = QCScaling.get_new_contexts(states, cxt_master, 1)
+            replace_idxs = pick_replacement_states(states, cxt_master, 1)
+            for (jdx, cxt) in zip(replace_idxs, new_cxts)
+                #base_cxt = cxt.parity==0 ? cxt_master.base_even : cxt_master.base_odd
+                #x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
+                new_state = QCScaling.PseudoGHZState(cxt.parity, rand(0:1), rand(0:1, nqubit-1), first(cxt.pos))
+                #new_state = QCScaling.PseudoGHZState(x..., first(cxt.pos))
                 states[jdx] = new_state
             end
         end
@@ -212,6 +219,7 @@ function main(args=nothing)
         gp = JLD2.Group(jldf, groupname)
         gp["args"] = args
         gp["states"] = state_tracker
+        gp["goal"] = goal
     end
 
 end
