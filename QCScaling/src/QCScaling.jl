@@ -158,7 +158,8 @@ function get_new_contexts(
         scores[idx] += sum(counter[idxs])
     end
     weights = Weights(maximum(scores) .- scores)
-    chosen_idxs = sample(0:3^cxt_master.nqubit-1, weights, nnew, replace=false)
+    #chosen_idxs = sample(0:3^cxt_master.nqubit-1, weights, nnew, replace=false)
+    chosen_idxs = sortperm(-scores)[1:nnew] .- 1
     pos = ParityOperator.(chosen_idxs, cxt_master.nqubit)
     cxts = Context.(pos, Ref(base_cxt))
     return cxts
