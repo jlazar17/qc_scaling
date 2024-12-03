@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J prometheus_simulation
+#SBATCH -J qc_scaling
 #SBATCH -c 1 # Number of cores
 #SBATCH -p arguelles_delgado
 #SBATCH --mem 6000
