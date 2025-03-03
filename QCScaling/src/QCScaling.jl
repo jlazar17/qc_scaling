@@ -90,6 +90,7 @@ function score(
     cxt_master::ContextMaster
 )
     nqubit = cxt_master.nqubit
+    # Something is undefined if either / both of the paired positions is NaN
     undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
 
     base_cxt = ifelse(
@@ -104,18 +105,22 @@ function score(
     score = 0
     for po in cxt.pos[p]
         # We actually do not care about this since it is "extra"
+        # TODO check if this is an off by one error
         if po.index==3^nqubit
             continue
         end
         # Find where on goal this PO maps
+        # This is the position in the 3^n/2 bitstring
         reduced_idx = get_goal_index(po)
         
         if reduced_idx in undefined_idxs
             continue
         end
+
+        # This is the companion in the 3^n string
         companion_idx = get_companion_index(po) 
         p = parity(state, po)
-        @assert p in [0,1]
+        @assert p ∈ [0,1]
         predicted_bit = abs(p - rep[companion_idx])
         diff = predicted_bit==goal[reduced_idx] ? 1 : -1
         score += diff
@@ -157,7 +162,7 @@ function get_new_contexts(
         idxs =  map(x->x.index, Context(generator, base_cxt))
         scores[idx] += sum(counter[idxs])
     end
-    weights = Weights(maximum(scores) .- scores)
+    #weights = Weights(maximum(scores) .- scores)
     #chosen_idxs = sample(0:3^cxt_master.nqubit-1, weights, nnew, replace=false)
     chosen_idxs = sortperm(-scores)[1:nnew] .- 1
     pos = ParityOperator.(chosen_idxs, cxt_master.nqubit)
@@ -199,11 +204,13 @@ function pick_new_alphas(
     base_cxt::Context
 )
     cg = companion_goal(cxt, goal, rep)
+    # TODO Use the nice helper function you wrote for this
+    # hamming_distance = abs.(fingerprint.a[cxt] .- cg)
     hamming_distance = abs.(fingerprint.a[:, base_cxt.parity+1, :, :] .- cg)
     nan_mask = isnan.(hamming_distance)
     hamming_distance[nan_mask] .= 0
-    where = argmin(sum(hamming_distance, dims=1))
-    return (base_cxt.parity, where[2]-1, idx_to_alphas(where[3]-1, length(cxt.pos[1])))
+    w = argmin(sum(hamming_distance, dims=1))
+    return (base_cxt.parity, w[2]-1, idx_to_alphas(w[3]-1, length(cxt.pos[1])))
 end
 
 end # module QCScaling
