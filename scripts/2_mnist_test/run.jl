@@ -1,8 +1,9 @@
 using Pkg
+Pkg.activate(".")
+
 Pkg.develop(path="../../QCScaling")
 using QCScaling
 
-Pkg.activate(".")
 using StatsBase
 using ProgressBars
 using Random
