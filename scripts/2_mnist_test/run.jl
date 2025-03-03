@@ -183,25 +183,27 @@ function main(args=nothing)
         # Calculate the representation
         rep = QCScaling.calculate_representation(states)
         acc = accuracy(rep, goal)
-        hash_acc = hash(acc)
-        if ~(hash_acc in keys(n_same_dict))
-            n_same_dict[hash_acc] = 0
+        hash_states = hash(states)
+        if ~(hash_states in keys(n_same_dict))
+            n_same_dict[hash_states] = 0
         end
-        n_same_dict[hash_acc] +=1
 
-        if n_same_dict[hash_acc] < args["n_same_tol"]
+        n_same_dict[hash_states] += 1
+
+        if n_same_dict[hash_states] < args["n_same_tol"]
             ws = Weights(maximum(scores) .- scores .+ 1)
             whiches = sample(1:length(scores), ws, nreplace, replace=false)
             for which in whiches
-                worst_state = states[which]
-                base_cxt = worst_state.theta_s==0 ? cxt_master.base_even : cxt_master.base_odd
-                cxt = QCScaling.Context(worst_state.generator, base_cxt)
+                rplc_state = states[which]
+                base_cxt = rplc_state.theta_s==0 ? cxt_master.base_even : cxt_master.base_odd
+                cxt = QCScaling.Context(rplc_state.generator, base_cxt)
                 x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
-                new_state = QCScaling.PseudoGHZState(x..., worst_state.generator)
+                new_state = QCScaling.PseudoGHZState(x..., rplc_state.generator)
                 states[which] = new_state
             end
         else
             n_same_dict = Dict()
+            proposed_states, proposed_scores = copy(states), copy(scores)
             new_cxts = QCScaling.get_new_contexts(states, cxt_master, 1)
             replace_idxs = rand(1:length(states), length(new_cxts))
             #replace_idxs = pick_replacement_states(states, cxt_master, 1)
