@@ -61,29 +61,18 @@ function parse_commandline()
 end
 
 function update_states(states, rep, nreplace, base_even, base_odd, nqubit)
-#function update_states(states, scores, goal, nreplace, base_even, base_odd, nqubit; fast=false)
     new_gens = QCScaling.get_new_generators(states, rep, base_even, base_odd, nreplace)
     for (idx, gen) in enumerate(new_gens)
-        states[idx] = QCScaling.PseudoGHZState(rand(0:1), rand(0:1), rand(0:1, nqubit-1), gen)
+        states[idx] = QCScaling.PseudoGHZState(
+            rand(0:1),
+            rand(0:1),
+            rand(0:1, nqubit-1),
+            gen
+        )
+        # TODO make function to decide alphas good
     end
-    #rep = QCScaling.calculate_representation(states, base_even, base_odd)
-    #scores = QCScaling.score(states, rep, goal, base_even, base_odd; track=false)
-    ##@show scores
-    #sorter = sortperm(scores)
-    #scores = scores[sorter]
-    #states = states[sorter]
-
-    #new_gens = QCScaling.get_new_generators(states, rep, base_even, base_odd, nreplace)
-    #for (idx, gen) in enumerate(new_gens)
-    #    states[idx] = QCScaling.PseudoGHZState(rand(0:1), rand(0:1), rand(0:1, nqubit-1), gen)
-    #end
     return states
 end
-
-# I think there should be a `shuffle_scores` function, 
-# function shuffle_scores(states, rep; fast=false)
-#     Do stuff
-# end
 
 function make_goal(args)
     if length(args["goalfile"])==0
@@ -186,9 +175,6 @@ function main(args=nothing)
         score_tracker[idx, :] = scores
         accuracy_tracker[idx] = accuracy(rep, goal)
 
-        if mod(idx, 50)==0
-            @show(accuracy(rep, goal), mean(scores))
-        end
     end
     jldopen(args["outfile"], "r+") do jldf
         groupname = determine_groupname(jldf; basegroupname=args["outgroup"])
