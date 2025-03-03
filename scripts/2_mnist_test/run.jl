@@ -6,7 +6,8 @@ Pkg.activate(".")
 using StatsBase
 using ProgressBars
 using Random
-using JLD2
+#using JLD2
+using HDF5
 using ArgParse
 
 include("utils.jl")
@@ -95,7 +96,7 @@ function make_goal(args)
     else
         # TODO implement this
         fname, key = split(args["goalfile"], ":")
-        goal = jldopen(fname) do jldf
+        goal = h5open(fname) do jldf
             binaryify(jldf[key], args["nqubit"])
         end
     end
@@ -136,7 +137,7 @@ end
 
 function setup_outfile(args)
     if ~isfile(args["outfile"])
-        jldopen(args["outfile"], "w") do _
+        h5open(args["outfile"], "w") do _
         end
     end
     return args["outfile"]
@@ -202,7 +203,8 @@ function main(args=nothing)
         else
             n_same_dict = Dict()
             new_cxts = QCScaling.get_new_contexts(states, cxt_master, 1)
-            replace_idxs = pick_replacement_states(states, cxt_master, 1)
+            replace_idxs = rand(1:length(states), length(new_cxts))
+            #replace_idxs = pick_replacement_states(states, cxt_master, 1)
             for (jdx, cxt) in zip(replace_idxs, new_cxts)
                 #base_cxt = cxt.parity==0 ? cxt_master.base_even : cxt_master.base_odd
                 #x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
@@ -214,10 +216,13 @@ function main(args=nothing)
 
 
     end
-    jldopen(args["outfile"], "r+") do jldf
-        groupname = determine_groupname(jldf; basegroupname=args["outgroup"])
-        gp = JLD2.Group(jldf, groupname)
-        gp["args"] = args
+    h5open(args["outfile"], "r+") do h5f
+        groupname = determine_groupname(h5f; basegroupname=args["outgroup"])
+        gp = create_group(h5f, groupname)
+        for (k, v) in args
+            attributes(gp)[k] = v
+        end
+        #gp["args"] = args
         gp["states"] = state_tracker
         gp["goal"] = goal
     end

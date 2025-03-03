@@ -11,8 +11,8 @@ function accuracy(rep, goal)
     return s / length(goal)
 end
 
-function determine_groupname(jldf; basegroupname="results")
-    if ~(basegroupname in keys(jldf))
+function determine_groupname(h5f; basegroupname="results")
+    if ~(basegroupname in keys(h5f))
         return basegroupname
     end
 
