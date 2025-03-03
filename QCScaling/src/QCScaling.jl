@@ -3,7 +3,7 @@ module QCScaling
 export ParityOperator
 
 using ProgressBars
-using Statsistics
+using Statistics
 
 include("./parity_observable.jl")
 include("./contexts.jl")
