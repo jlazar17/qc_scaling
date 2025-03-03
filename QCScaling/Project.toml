@@ -7,3 +7,7 @@ version = "0.1.0"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 StatProfilerHTML = "a8a75453-ed82-57c9-9e16-4cd1196ecbf5"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[compat]
+Statistics = "1.11.1"
