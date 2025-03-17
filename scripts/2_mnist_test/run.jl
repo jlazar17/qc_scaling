@@ -184,6 +184,9 @@ function main(args=nothing)
         # Calculate the representation
         rep = QCScaling.calculate_representation(states)
         acc = accuracy(rep, goal)
+        if mod(idx, 200)==1
+            display(acc)
+        end
         hash_states = hash(states)
         if ~(hash_states in keys(n_same_dict))
             n_same_dict[hash_states] = 0
@@ -191,29 +194,37 @@ function main(args=nothing)
 
         n_same_dict[hash_states] += 1
 
-        if n_same_dict[hash_states] < args["n_same_tol"]
+        if rand() > 1e-3
+        #if n_same_dict[hash_states] <= args["n_same_tol"]
             ws = Weights(maximum(scores) .- scores .+ 1)
             whiches = sample(1:length(scores), ws, nreplace, replace=false)
             for which in whiches
                 rplc_state = states[which]
                 base_cxt = rplc_state.theta_s==0 ? cxt_master.base_even : cxt_master.base_odd
                 cxt = QCScaling.Context(rplc_state.generator, base_cxt)
-                x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
-                new_state = QCScaling.PseudoGHZState(x..., rplc_state.generator)
+                alphas = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
+                new_state = QCScaling.PseudoGHZState(alphas..., rplc_state.generator)
                 states[which] = new_state
             end
         else
             n_same_dict = Dict()
-            proposed_states, proposed_scores = copy(states), copy(scores)
-            new_cxts = QCScaling.get_new_contexts(states, cxt_master, 1)
-            replace_idxs = rand(1:length(states), length(new_cxts))
+            #proposed_states, proposed_scores = copy(states), copy(scores)
+            #replace_idxs = rand(1:length(states), length(new_cxts))
             #replace_idxs = pick_replacement_states(states, cxt_master, 1)
-            for (jdx, cxt) in zip(replace_idxs, new_cxts)
-                #base_cxt = cxt.parity==0 ? cxt_master.base_even : cxt_master.base_odd
-                #x = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
-                new_state = QCScaling.PseudoGHZState(cxt.parity, rand(0:1), rand(0:1, nqubit-1), first(cxt.pos))
-                #new_state = QCScaling.PseudoGHZState(x..., first(cxt.pos))
-                states[jdx] = new_state
+            for _ in nreplace
+                new_states, new_scores = copy(states), copy(scores)
+                while sum(new_scores) <= sum(scores)
+                    new_states, new_scores = copy(states), copy(scores)
+                    replace_idx = rand(1:length(states))
+                    @show sum(new_scores), sum(scores)
+                    cxt = first(QCScaling.get_new_contexts(states, cxt_master, 1))
+                    base_cxt = cxt==0 ? cxt_master.base_even : cxt_master.base_odd
+                    alphas = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
+                    new_state = QCScaling.PseudoGHZState(alphas..., first(cxt.pos))
+                    new_states[replace_idx] = new_state
+                    new_scores = QCScaling.score(new_states, goal, cxt_master)
+                end
+                states, scores = new_states, new_scores
             end
         end
 

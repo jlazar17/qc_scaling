@@ -18,7 +18,7 @@ function determine_groupname(h5f; basegroupname="results")
 
     idx = 1
     groupname = "$(basegroupname)_$(idx)"
-    while groupname in keys(jldf)
+    while groupname in keys(h5f)
         idx += 1
         groupname = "$(basegroupname)_$(idx)"
     end
