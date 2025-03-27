@@ -1,15 +1,15 @@
 #!/bin/bash
 #SBATCH -J qc_scaling
 #SBATCH -c 1 # Number of cores
-#SBATCH -p arguelles_delgado
-#SBATCH --mem 6000
+#SBATCH -p arguelles_delgado,sapphire
+#SBATCH --mem 8000
 #SBATCH -t 0-10:00:00 # Maximum execution time (D-HH:MM:SS)
-#SBATCH -o /n/holyscratch01/arguelles_delgado_lab/Everyone/jlazar/logging/output/%A_%a.out # Standard output
-#SBATCH -e /n/holyscratch01/arguelles_delgado_lab/Everyone/jlazar/logging/error/%A_%a.err # Standard output
+#SBATCH -o /n/netscratch/arguelles_delgado_lab/Everyone/jlazar/qc_scaling/%A_%a.out # Standard output
+#SBATCH -e /n/netscratch/arguelles_delgado_lab/Everyone/jlazar/qc_scaling/%A_%a.err # Standard output
 #SBATCH --array 1-100
 
 if [ -z ${niter+x} ]; then
-    niter=5000
+    niter=10000
 fi
 
 if [ -z ${seed+x} ]; then
@@ -19,7 +19,7 @@ fi
 JULIA_BIN_PATH=$HOME/julias/julia-1.10.4/bin
 export PATH=$PATH:$JULIA_BIN_PATH
 
-outfile=/n/holylfs05/LABS/arguelles_delgado_lab/Everyone/jlazar/qc_scaling/MNIST_${SLURM_ARRAY_TASK_ID}.jld2
+outfile=/n/holylfs05/LABS/arguelles_delgado_lab/Everyone/jlazar/qc_scaling/MNIST_${SLURM_ARRAY_TASK_ID}.h5
 
 julia /n/home12/jlazar/qc_scaling/scripts/2_mnist_test/run.jl \
     --outfile $outfile \
