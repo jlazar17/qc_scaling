@@ -1,4 +1,5 @@
 QCScaling/Manifest.toml
 *.key
 **/*[Ss]cratch*
+**/*.sbatch
 **/statprof*
