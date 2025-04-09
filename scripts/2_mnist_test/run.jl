@@ -98,7 +98,7 @@ function make_goal(args)
         # TODO implement this
         fname, key = split(args["goalfile"], ":")
         goal = h5open(fname) do jldf
-            binaryify(jldf[key], args["nqubit"])
+            binaryify(jldf[key][:], args["nqubit"])
         end
     end
     return goal
@@ -227,9 +227,8 @@ function main(args=nothing)
                 states, scores = new_states, new_scores
             end
         end
-
-
     end
+
     h5open(args["outfile"], "r+") do h5f
         groupname = determine_groupname(h5f; basegroupname=args["outgroup"])
         gp = create_group(h5f, groupname)

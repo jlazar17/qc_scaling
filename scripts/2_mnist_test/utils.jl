@@ -24,6 +24,7 @@ function determine_groupname(h5f; basegroupname="results")
     end
     return groupname
 end
+
 function binaryify(a::Vector{Int}, nqubit)
     goal = zeros(Int, Int((3^nqubit-1) / 2))
     for (idx, v) in enumerate(a)
