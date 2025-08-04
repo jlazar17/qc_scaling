@@ -12,7 +12,16 @@ struct PseudoGHZState
     end
 end
 
-function random_state(nqubit::Int)
+function PseudoGHZState(v::Vector{T}) where T <: Integer
+    nqubit = Int((length(v) - 1) / 2)
+    theta_s = v[1]
+    theta_z = v[2]
+    alphas = v[3:1+nqubit]
+    po = ParityOperator(v[end-nqubit+1:end])
+    return PseudoGHZState(theta_s, theta_z, alphas, po)
+end
+
+function random_state(nqubit::Integer)
     theta_s, theta_z = rand(0:1, 2)
     alphas = rand(0:1, nqubit-1)
     po = QCScaling.ParityOperator(rand(0:2, nqubit))
@@ -20,7 +29,7 @@ function random_state(nqubit::Int)
     return state
 end
 
-function random_state(nqubit::Int, n::Int)
+function random_state(nqubit::Integer, n::Integer)
     states = QCScaling.PseudoGHZState[]
     for _ in 1:n
         state = random_state(nqubit)
