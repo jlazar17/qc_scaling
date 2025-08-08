@@ -1,27 +1,27 @@
-function pick_replacement_states(
-    states::Vector{QCScaling.PseudoGHZState},
-    cxt_master::QCScaling.ContextMaster,
-    nnew::Int
-)
-    counter = zeros(Int, 3^cxt_master.nqubit)
-    ## Count how many times a po is covered
-    for state in states
-        # This should be a function
-        base_cxt = ifelse(state.theta_s==0, cxt_master.base_even, cxt_master.base_odd)
-        idxs =  map(x->x.index, QCScaling.Context(state.generator, base_cxt))
-        counter[idxs] .+= 1
-    end
-    overlap = zeros(Int, size(states))
-    for (idx, state) in enumerate(states)
-        base_cxt = ifelse(state.theta_s==0, cxt_master.base_even, cxt_master.base_odd)
-        cxt = QCScaling.Context(state.generator, base_cxt)
-        idxs = map(x->x.index, cxt.pos)
-        overlap[idx] = sum(counter[idxs])
-    end
-    weights = Weights(overlap)
-    chosen_idxs = sample(1:length(states), weights, nnew, replace=false)
-    return chosen_idxs
-end
+#function pick_replacement_states(
+#    states::Vector{QCScaling.PseudoGHZState},
+#    cxt_master::QCScaling.ContextMaster,
+#    nnew::Int
+#)
+#    counter = zeros(Int, 3^cxt_master.nqubit)
+#    ## Count how many times a po is covered
+#    for state in states
+#        # This should be a function
+#        base_cxt = ifelse(state.theta_s==0, cxt_master.base_even, cxt_master.base_odd)
+#        idxs =  map(x->x.index, QCScaling.Context(state.generator, base_cxt))
+#        counter[idxs] .+= 1
+#    end
+#    overlap = zeros(Int, size(states))
+#    for (idx, state) in enumerate(states)
+#        base_cxt = ifelse(state.theta_s==0, cxt_master.base_even, cxt_master.base_odd)
+#        cxt = QCScaling.Context(state.generator, base_cxt)
+#        idxs = map(x->x.index, cxt.pos)
+#        overlap[idx] = sum(counter[idxs])
+#    end
+#    weights = Weights(overlap)
+#    chosen_idxs = sample(1:length(states), weights, nnew, replace=false)
+#    return chosen_idxs
+#end
 
 function make_initial_state(args)
     @assert args["nstate"]==0 || length(args["statefile"])==0

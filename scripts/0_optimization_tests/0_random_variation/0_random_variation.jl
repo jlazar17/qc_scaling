@@ -49,6 +49,10 @@ function parse_commandline()
             help = "File in which previously optimized states are stored"
             arg_type = String
             default = ""
+        "--savelevel"
+            help = "Amount of information to store in output file"
+            arg_type = String
+            default = "best_states"
         "--nstate"
             help = "Number of states to use"
             arg_type = Int

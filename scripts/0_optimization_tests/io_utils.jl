@@ -38,3 +38,23 @@ function setup_outfile(args)
     end
     return args["outfile"]
 end
+
+function make_output_states(state_tracker, accuracies, args)
+    if args["savelevel"]=="all"
+        return state_tracker
+    elseif args["savelevel"]=="best_states"
+        bestacc, idxs = 0, []
+        for idx in 1:size(state_tracker)[1]
+            if accuracies[idx] < bestacc
+                continue
+            end
+            push!(idxs, idx)
+            bestacc = accuracies[idx]
+        end
+        return state_tracker[idxs, :, :, :]
+    elseif args["savelevel"]=="best_state"
+        idx = argmax(accuracies)
+        return state_tracker[argmax, :, :, :]
+    end
+        error("Unrecognized savelevel")
+end

@@ -34,9 +34,6 @@ function base_optimization(make_goal_fxn, args)
         rep = QCScaling.calculate_representation(states)
         acc = accuracy(rep, goal)
         accuracies[idx] = acc
-        if mod(idx, 200)==1
-            display(acc)
-        end
         hash_states = hash(states)
         if ~(hash_states in keys(n_same_dict))
             n_same_dict[hash_states] = 0
@@ -63,21 +60,27 @@ function base_optimization(make_goal_fxn, args)
             #replace_idxs = pick_replacement_states(states, cxt_master, 1)
             for _ in nreplace
                 new_states, new_scores = copy(states), copy(scores)
+                idx = 0
                 while sum(new_scores) <= sum(scores)
                     new_states, new_scores = copy(states), copy(scores)
                     replace_idx = rand(1:length(states))
-                    @show sum(new_scores), sum(scores)
                     cxt = first(QCScaling.get_new_contexts(states, cxt_master, 1))
                     base_cxt = cxt==0 ? cxt_master.base_even : cxt_master.base_odd
                     alphas = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
                     new_state = QCScaling.PseudoGHZState(alphas..., first(cxt.pos))
                     new_states[replace_idx] = new_state
                     new_scores = QCScaling.score(new_states, goal, cxt_master)
+                    idx += 1
+                    if idx > 1000
+                        break
+                    end
                 end
                 states, scores = new_states, new_scores
             end
         end
     end
+
+    output_states = make_output_states(state_tracker, accuracies, args)
 
     h5open(args["outfile"], "r+") do h5f
         groupname = determine_groupname(h5f; basegroupname=args["outgroup"])
@@ -85,11 +88,11 @@ function base_optimization(make_goal_fxn, args)
         for (k, v) in args
             attributes(gp)[k] = v
         end
-        #gp["args"] = args
-        gp["states"] = state_tracker
+        gp["states"] = output_states
         gp["goal"] = goal
         gp["accuracies"] = accuracies
     end
+    println(maximum(accuracies))
 
 end
 
