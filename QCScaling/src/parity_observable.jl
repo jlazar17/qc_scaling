@@ -3,7 +3,7 @@ struct ParityOperator
     index::Int
     function ParityOperator(βs::Vector{T}, index::Integer) where T <: Integer
         @assert length(βs) % 2==0 "Odd number of betas: $(βs)"
-        @assert all(βs .<= 2) "Some betas are not in <2> $(βs) $(index)"
+        @assert all(<=(2), βs) "Some betas are not in <2> $(βs) $(index)"
         @assert index <= 3 ^ length(βs) "Index is too big"
         return new(βs, index)
     end
@@ -13,7 +13,7 @@ function to_index(βs::Vector{T}) where T <: Integer
     #return sum([3^exp for exp in 0:length(βs)-1] .* βs) + 1
     idx = 1
     exp = 0
-    for x in reverse(βs)
+    for x in Iterators.reverse(βs)
         idx += x * 3 ^ exp
         exp += 1
     end
@@ -35,6 +35,6 @@ function ParityOperator(βs::Vector{T}) where T <: Integer
     return ParityOperator(βs, index)
 end
 
-Base.:+(po0::ParityOperator, po1::ParityOperator) = ParityOperator((po0.βs + po1.βs) .% 3)
-Base.:-(po0::ParityOperator, po1::ParityOperator) = ParityOperator((po0.βs - po1.βs) .% 3)
+Base.:+(po0::ParityOperator, po1::ParityOperator) = ParityOperator((po0.βs .+ po1.βs) .% 3)
+Base.:-(po0::ParityOperator, po1::ParityOperator) = ParityOperator((po0.βs .- po1.βs) .% 3)
 Base.length(po::ParityOperator) = length(po.βs)
