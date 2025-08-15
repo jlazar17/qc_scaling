@@ -4,6 +4,7 @@ export ParityOperator
 
 using ProgressBars
 using Statistics
+using OhMyThreads
 
 include("./parity_observable.jl")
 include("./contexts.jl")
@@ -17,7 +18,7 @@ function get_goal_index(po::ParityOperator)
 end
 
 function get_companion_index(po::ParityOperator)
-    return po.index % 2==1 ? po.index + 1 : po.index - 1
+    return isone(po.index % 2) ? po.index + 1 : po.index - 1
 end
 
 function calculate_preference(
@@ -63,12 +64,17 @@ function score(
     states::Vector{PseudoGHZState},
     rep::Vector,
     goal::Vector{Int},
-    cxt_master::ContextMaster
+    cxt_master::ContextMaster;
+    multi_threading=true
 )
-    scores = Int[]
     itr = states
-    for state in itr
-        push!(scores, score(state, rep, goal, cxt_master))
+    undefined_idxs = @views Set(findall(isnan, (rep[1:2:end-1] .- rep[2:2:end])))
+    scores = OhMyThreads.@tasks for state in itr
+        @set begin
+            collect = true
+            ntasks = multi_threading ? Threads.nthreads() : 1
+        end
+        score(state, rep, undefined_idxs, goal, cxt_master)
     end
     return scores
 end
@@ -86,12 +92,11 @@ end
 function score(
     state::PseudoGHZState,
     rep::Vector{Float64},
+    undefined_idxs::Set,
     goal::Vector{Int},
-    cxt_master::ContextMaster
+    cxt_master::ContextMaster;
 )
     nqubit = cxt_master.nqubit
-    # Something is undefined if either / both of the paired positions is NaN
-    undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
 
     base_cxt = ifelse(
         state.theta_s==0,
@@ -100,27 +105,28 @@ function score(
     )
     cxt = Context(state.generator, base_cxt)
     p = sortperm(QCScaling.to_index(cxt))
-    pos_sorted = cxt.pos[p]
-    
+    pos_sorted = @view cxt.pos[p]
+
     score = 0
-    for po in cxt.pos[p]
+    tnq = 3^nqubit
+    for po in pos_sorted
         # We actually do not care about this since it is "extra"
         # TODO check if this is an off by one error
-        if po.index==3^nqubit
+        if po.index==tnq
             continue
         end
         # Find where on goal this PO maps
         # This is the position in the 3^n/2 bitstring
         reduced_idx = get_goal_index(po)
-        
+
         if reduced_idx in undefined_idxs
             continue
         end
 
         # This is the companion in the 3^n string
-        companion_idx = get_companion_index(po) 
+        companion_idx = get_companion_index(po)
         p = parity(state, po)
-        @assert p ∈ [0,1]
+        @assert p ∈ (0,1)
         predicted_bit = abs(p - rep[companion_idx])
         diff = predicted_bit==goal[reduced_idx] ? 1 : -1
         score += diff
