@@ -63,7 +63,7 @@ function accuracy(rep, goal)
         if x!=y
             continue
         end
-        s +=1
+        s += 1
     end
     return s / length(goal)
 end

@@ -4,6 +4,8 @@ export ParityOperator
 
 using ProgressBars
 using Statistics
+using OhMyThreads
+using StaticArrays
 
 include("./parity_observable.jl")
 include("./contexts.jl")
@@ -17,11 +19,11 @@ function get_goal_index(po::ParityOperator)
 end
 
 function get_companion_index(po::ParityOperator)
-    return po.index % 2==1 ? po.index + 1 : po.index - 1
+    return isone(po.index % 2) ? po.index + 1 : po.index - 1
 end
 
 function calculate_preference(
-    states::Vector{PseudoGHZState},
+    states::Vector{<:PseudoGHZState},
     base_even::Context,
     base_odd::Context
 )
@@ -30,17 +32,19 @@ function calculate_preference(
     ctr = zeros(Int, 3 ^ nqubit)
     for state in states
         base_cxt = state.theta_s==0 ? base_even : base_odd
-        cxt = Context(state.generator, base_cxt)
-        idxs = map(po->po.index, cxt.pos)
-        representation[idxs] .+= parity(state, cxt)
-        ctr[idxs] .+= 1
+        for base_po in base_cxt.pos
+            derived_po = state.generator + base_po
+            p = parity(state, derived_po)
+            representation[derived_po.index] += p
+            ctr[derived_po.index] += 1
+        end
     end
     pref = representation ./ ctr
     return pref
 end
 
 function calculate_representation(
-    states::Vector{PseudoGHZState},
+    states::Vector{<:PseudoGHZState},
     base_even::Context,
     base_odd::Context
 )
@@ -51,7 +55,7 @@ function calculate_representation(
 end
 
 function calculate_representation(
-    states::Vector{PseudoGHZState},
+    states::Vector{<:PseudoGHZState},
 )
     nqubit = length(first(states))
     base_even = generate_base_context(nqubit, 0)
@@ -60,21 +64,27 @@ function calculate_representation(
 end
 
 function score(
-    states::Vector{PseudoGHZState},
+    states::Vector{<:PseudoGHZState},
     rep::Vector,
     goal::Vector{Int},
-    cxt_master::ContextMaster
+    cxt_master::ContextMaster;
+    multi_threading=true
 )
-    scores = Int[]
+
     itr = states
-    for state in itr
-        push!(scores, score(state, rep, goal, cxt_master))
+    undefined_idxs = @views Set(findall(isnan, (rep[1:2:end-1] .- rep[2:2:end])))
+    scores = OhMyThreads.@tasks for state in itr
+        @set begin
+            collect = true
+            ntasks = multi_threading ? Threads.nthreads() : 1
+        end
+        score(state, rep, undefined_idxs, goal, cxt_master)
     end
     return scores
 end
 
 function score(
-    states::Vector{PseudoGHZState},
+    states::Vector{<:PseudoGHZState},
     goal::Vector{Int},
     cxt_master::ContextMaster
 )
@@ -90,41 +100,34 @@ end
 function score(
     state::PseudoGHZState,
     rep::Vector{Float64},
+    undefined_idxs::Set,
     goal::Vector{Int},
-    cxt_master::ContextMaster
+    cxt_master::ContextMaster;
 )
     nqubit = cxt_master.nqubit
-    # Something is undefined if either / both of the paired positions is NaN
-    #undefined_idxs = findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end]))
-    undefined_idxs = Set(findall(isnan, abs.(rep[1:2:end-1] .- rep[2:2:end])))
-    #@views undefined_idxs = @. isnan(rep[1:2:end-1]) || isnan(rep[2:2:end])
 
     base_cxt = ifelse(
         state.theta_s==0,
         cxt_master.base_even,
         cxt_master.base_odd
     )
-    cxt = Context(state.generator, base_cxt)
-    
+
     score = 0
-    for po in cxt.pos
-        # We actually do not care about this since it is "extra"
-        # TODO check if this is an off by one error
-        if po.index==3^nqubit
+    tnq = 3^nqubit
+    for base_po in base_cxt.pos
+        derived_po = state.generator + base_po
+        if derived_po.index==tnq
             continue
         end
-        # Find where on goal this PO maps
-        # This is the position in the 3^n/2 bitstring
-        reduced_idx = get_goal_index(po)
-        
+        reduced_idx = get_goal_index(derived_po)
+
         if reduced_idx in undefined_idxs
             continue
         end
 
-        # This is the companion in the 3^n string
-        companion_idx = get_companion_index(po) 
-        p = parity(state, po)
-        @assert p ∈ [0,1]
+        companion_idx = get_companion_index(derived_po)
+        p = parity(state, derived_po)
+        @assert p ∈ (0,1)
         predicted_bit = abs(p - rep[companion_idx])
         diff = predicted_bit==goal[reduced_idx] ? 1 : -1
         score += diff
@@ -137,24 +140,10 @@ function get_new_contexts(
     rep::Vector,
     cxt_master::ContextMaster,
     nnew::Int
-)::Vector{Context}
+)
     counter = zeros(Int, 3^cxt_master.nqubit)
     counter[isnan.(rep)] .= 1
-    ## Count how many times a po is covered
-    #for state in states
-    #    base_cxt = ifelse(
-    #        state.theta_s==0,
-    #        cxt_master.base_even,
-    #        cxt_master.base_odd
-    #    )
-    #    idxs =  map(x->x.index, Context(state.generator, base_cxt))
-    #    counter[idxs] .+= 1
-    #end
-    #@show counter
-    #@show findall(counter.==0)
-    # Look through every state and score them based on how much coverage there is
     scores = zeros(Int, 3^cxt_master.nqubit)
-    # TODO look through even and odd
     base_cxt = ifelse(
         rand() > 0.5,
         cxt_master.base_even,
@@ -166,15 +155,13 @@ function get_new_contexts(
         idxs =  map(x->x.index, Context(generator, base_cxt))
         scores[idx] += sum(counter[idxs])
     end
-    #weights = Weights(maximum(scores) .- scores)
-    #chosen_idxs = sample(0:3^cxt_master.nqubit-1, weights, nnew, replace=false)
     chosen_idxs = sortperm(-scores)[1:nnew] .- 1
     pos = ParityOperator.(chosen_idxs, cxt_master.nqubit)
     cxts = Context.(pos, Ref(base_cxt))
     return cxts
 end
 
-function get_new_contexts(states::Vector, cxt_master::ContextMaster, nnew::Int)::Vector{Context}
+function get_new_contexts(states::Vector, cxt_master::ContextMaster, nnew::Int)
     rep = calculate_representation(states, cxt_master.base_even, cxt_master.base_odd)
     return get_new_contexts(states, rep, cxt_master, nnew)
 end
@@ -208,13 +195,30 @@ function pick_new_alphas(
     base_cxt::Context
 )
     cg = companion_goal(cxt, goal, rep)
-    # TODO Use the nice helper function you wrote for this
-    # hamming_distance = abs.(fingerprint.a[cxt] .- cg)
-    hamming_distance = abs.(fingerprint.a[:, base_cxt.parity+1, :, :] .- cg)
-    nan_mask = isnan.(hamming_distance)
-    hamming_distance[nan_mask] .= 0
-    w = argmin(sum(hamming_distance, dims=1))
-    return (base_cxt.parity, w[2]-1, idx_to_alphas(w[3]-1, length(cxt.pos[1])))
+    fa = fingerprint.a
+    parity_idx = base_cxt.parity + 1
+    npos = size(fa, 1)
+    ntz = size(fa, 3)
+    nalpha = size(fa, 4)
+    best_sum = typemax(Float64)
+    best_tz = 1
+    best_alpha = 1
+    @inbounds for ai in 1:nalpha
+        for tzi in 1:ntz
+            s = 0.0
+            for pi in 1:npos
+                c = cg[pi]
+                isnan(c) && continue
+                s += abs(fa[pi, parity_idx, tzi, ai] - c)
+            end
+            if s < best_sum
+                best_sum = s
+                best_tz = tzi
+                best_alpha = ai
+            end
+        end
+    end
+    return (base_cxt.parity, best_tz-1, idx_to_alphas(best_alpha-1, length(cxt.pos[1])))
 end
 
 end # module QCScaling

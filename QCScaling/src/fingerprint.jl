@@ -9,12 +9,10 @@ struct Fingerprint
     end
 end
 
-function idx_to_alphas(idx::Int, nqubit::Int) :: Vector{Int}
+function idx_to_alphas(idx::Int, nqubit::Int)
     @assert idx < 2^(nqubit-1)
-    r = zeros(Int, nqubit-1)
-    b = digits(idx, base=2)
-    r[1:length(b)] .= b
-    return r
+    M = nqubit - 1
+    return SVector{M, Int}(ntuple(i -> (idx >> (i-1)) & 1, M))
 end
 
 function Fingerprint(fname::String, groupname::String)
@@ -50,6 +48,6 @@ function Base.getindex(fp::Fingerprint, state::PseudoGHZState)
     theta_s = state.theta_s
     theta_z = state.theta_z
     nqubit = length(state)
-    idx = sum([2^n for n in 0:nqubit-2] .* state.alphas)
+    idx = sum(state.alphas[i] << (i-1) for i in eachindex(state.alphas))
     return fp.a[:, theta_s+1, theta_z+1, idx+1]
 end

@@ -3,3 +3,5 @@ QCScaling/Manifest.toml
 **/*[Ss]cratch*
 **/*.sbatch
 **/statprof*
+*.h5
+*.jld2
