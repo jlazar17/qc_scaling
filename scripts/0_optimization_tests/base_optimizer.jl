@@ -16,12 +16,15 @@ function base_optimization(make_goal_fxn, args)
     n_same_dict = Dict()
     accuracies = zeros(Float64, length(itr))
 
+    sort_perms = zeros(Int, (length(itr), length(states)))
+
     for idx in itr
         # Sort the states and scores by ascending score
         scores = QCScaling.score(states, goal, cxt_master)
         sorter = sortperm(scores)
         scores = scores[sorter]
         states = states[sorter]
+        sort_perms[idx, :] = sorter
 
         for (jdx, state) in enumerate(states)
             state_tracker[idx, jdx, 1] = state.theta_s
@@ -80,15 +83,27 @@ function base_optimization(make_goal_fxn, args)
         end
     end
 
-    output_states = make_output_states(state_tracker, accuracies, args)
-
     h5open(args["outfile"], "r+") do h5f
         groupname = determine_groupname(h5f; basegroupname=args["outgroup"])
         gp = create_group(h5f, groupname)
         for (k, v) in args
             attributes(gp)[k] = v
         end
-        gp["states"] = output_states
+        if args["savelevel"] == "deltas"
+            deltas = make_delta_states(state_tracker, sort_perms)
+            attributes(gp)["niter_actual"] = size(state_tracker, 1)
+            gp["initial_states"] = deltas["initial_states"]
+            gp["delta_iterations"] = deltas["delta_iterations"]
+            gp["delta_state_indices"] = deltas["delta_state_indices"]
+            gp["delta_values"] = deltas["delta_values"]
+            gp["initial_perm"] = deltas["initial_perm"]
+            gp["perm_delta_iterations"] = deltas["perm_delta_iterations"]
+            gp["perm_delta_positions"] = deltas["perm_delta_positions"]
+            gp["perm_delta_values"] = deltas["perm_delta_values"]
+        else
+            output_states = make_output_states(state_tracker, accuracies, args)
+            gp["states"] = output_states
+        end
         gp["goal"] = goal
         gp["accuracies"] = accuracies
     end
