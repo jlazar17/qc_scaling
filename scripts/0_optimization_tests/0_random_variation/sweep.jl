@@ -18,7 +18,7 @@ function parse_sweep_args()
         "--nseeds"
             arg_type = Int
             default = 10
-        "--outdir"
+        "--outfile"
             arg_type = String
             required = true
         "--savelevel"
@@ -38,14 +38,20 @@ function run_sweep()
     pzero_values = parse.(Float64, split(args["pzero-values"], ","))
     multipliers = parse.(Int, split(args["nstate-multipliers"], ","))
     nseeds = args["nseeds"]
-    outdir = args["outdir"]
-    mkpath(outdir)
+    outfile = args["outfile"]
+    mkpath(dirname(outfile))
+
+    seeds = rand(UInt32, nseeds)
+    while length(unique(seeds)) < nseeds
+        seeds = rand(UInt32, nseeds)
+    end
+    seeds = Int.(seeds)
 
     for mult in multipliers
         nstate = mult * base_nstate
         for pzero in pzero_values
-            for seed in 1:nseeds
-                outfile = joinpath(outdir, "nstate_$(nstate)_pzero_$(pzero)_seed_$(seed).h5")
+            for seed in seeds
+                group = "nstate_$(nstate)_pzero_$(pzero)_seed_$(seed)"
                 run_args = Dict(
                     "nqubit" => nqubit,
                     "niter" => args["niter"],
@@ -53,7 +59,7 @@ function run_sweep()
                     "pzero" => pzero,
                     "seed" => seed,
                     "outfile" => outfile,
-                    "outgroup" => "results",
+                    "outgroup" => group,
                     "savelevel" => args["savelevel"],
                     "nreplace" => args["nreplace"],
                     "n_same_tol" => 10,
@@ -61,7 +67,7 @@ function run_sweep()
                     "goalfile" => "",
                     "statefile" => "",
                 )
-                println("Running: nstate=$nstate pzero=$pzero seed=$seed -> $outfile")
+                println("Running: nstate=$nstate pzero=$pzero seed=$seed")
                 main(run_args)
             end
         end

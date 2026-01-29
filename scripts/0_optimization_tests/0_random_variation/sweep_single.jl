@@ -18,7 +18,7 @@ function parse_sweep_single_args()
         "--seed"
             arg_type = Int
             required = true
-        "--outdir"
+        "--outfile"
             arg_type = String
             required = true
         "--savelevel"
@@ -38,10 +38,10 @@ function run_single()
     nstate = args["nstate-multiplier"] * base_nstate
     pzero = args["pzero"]
     seed = args["seed"]
-    outdir = args["outdir"]
-    mkpath(outdir)
+    outfile = args["outfile"]
+    mkpath(dirname(outfile))
 
-    outfile = joinpath(outdir, "nstate_$(nstate)_pzero_$(pzero)_seed_$(seed).h5")
+    group = "nstate_$(nstate)_pzero_$(pzero)_seed_$(seed)"
     run_args = Dict(
         "nqubit" => nqubit,
         "niter" => args["niter"],
@@ -49,7 +49,7 @@ function run_single()
         "pzero" => pzero,
         "seed" => seed,
         "outfile" => outfile,
-        "outgroup" => "results",
+        "outgroup" => group,
         "savelevel" => args["savelevel"],
         "nreplace" => args["nreplace"],
         "n_same_tol" => 10,
