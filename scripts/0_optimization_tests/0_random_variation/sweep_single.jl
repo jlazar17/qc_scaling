@@ -34,8 +34,8 @@ end
 function run_single()
     args = parse_sweep_single_args()
     nqubit = args["nqubit"]
-    base_nstate = 3 * Int(ceil(3^nqubit / 2^(nqubit - 1)))
-    nstate = args["nstate-multiplier"] * base_nstate
+    base_nstate_exact = 3^nqubit / 2^(nqubit - 1)
+    nstate = Int(ceil(args["nstate-multiplier"] * base_nstate_exact))
     pzero = args["pzero"]
     seed = args["seed"]
     outfile = args["outfile"]

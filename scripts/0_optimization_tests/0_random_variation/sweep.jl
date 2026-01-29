@@ -34,7 +34,7 @@ end
 function run_sweep()
     args = parse_sweep_args()
     nqubit = args["nqubit"]
-    base_nstate = 3 * Int(ceil(3^nqubit / 2^(nqubit - 1)))
+    base_nstate_exact = 3^nqubit / 2^(nqubit - 1)
     pzero_values = parse.(Float64, split(args["pzero-values"], ","))
     multipliers = parse.(Int, split(args["nstate-multipliers"], ","))
     nseeds = args["nseeds"]
@@ -48,7 +48,7 @@ function run_sweep()
     seeds = Int.(seeds)
 
     for mult in multipliers
-        nstate = mult * base_nstate
+        nstate = Int(ceil(mult * base_nstate_exact))
         for pzero in pzero_values
             for seed in seeds
                 group = "nstate_$(nstate)_pzero_$(pzero)_seed_$(seed)"
