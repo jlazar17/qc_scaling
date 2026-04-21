@@ -175,17 +175,20 @@ function main()
     @printf("  Typical     (stagnation ~%dk)  : %5.1f min\n",
             stag_window÷1000, t_restart_est)
 
+    # t_nstate_wc is already the wall time for one nstate evaluation: seeds run
+    # in parallel on their own threads, so wall = one seed's time.  Do NOT divide
+    # by speedup again — that would double-count the parallelism.  The speedup
+    # measurement above is reported only to characterise thread efficiency.
     @printf("\nPer nstate evaluation (%d seeds, %d threads):\n", nseeds, nthreads)
-    @printf("  Worst case  : %5.1f min  (× speedup %.1f = %5.1f min wall)\n",
-            t_seed_wc, speedup, t_seed_wc / speedup * nthreads / nthreads)
-    @printf("  Typical est : %5.1f min wall\n", t_nstate_est / speedup * nthreads / nthreads)
+    @printf("  Worst case  : %5.1f min wall\n", t_nstate_wc)
+    @printf("  Typical est : %5.1f min wall\n", t_nstate_est)
 
     @printf("\nPer H value (%d nstate points):\n", n_nstates)
-    @printf("  Worst case  : %5.1f hours\n", n_nstates * t_seed_wc / speedup / 60)
-    @printf("  Typical est : %5.1f hours\n", n_nstates * t_nstate_est / speedup / 60)
+    @printf("  Worst case  : %5.1f hours\n", n_nstates * t_nstate_wc / 60)
+    @printf("  Typical est : %5.1f hours\n", n_nstates * t_nstate_est / 60)
 
     # Suggested SLURM time limit (worst case + 20% buffer, rounded up to hour)
-    wc_hrs    = n_nstates * t_seed_wc / speedup / 60
+    wc_hrs    = n_nstates * t_nstate_wc / 60
     suggested = ceil(Int, wc_hrs * 1.2)
     @printf("\nSuggested TIME_LIMIT for submit_n10.sh : %02d:00:00\n", suggested)
 

@@ -19,7 +19,7 @@ JULIA="${JULIA:-julia}"
 PARTITION="${PARTITION:-batch}"
 ACCOUNT="${ACCOUNT:-}"
 NCORES=20          # must be >= nseeds (20); used for Threads.@threads
-TIME_LIMIT="24:00:00"   # worst case ~20h (3 restarts × 5M steps × 20 nstates)
+TIME_LIMIT="15:00:00"   # worst case ~12h (3 restarts × 5M steps × 16 nstates) + 20% buffer
 
 H_VALS=(0.0 0.25 0.5 0.625 0.75 0.875 1.0)
 NHVALS=${#H_VALS[@]}
