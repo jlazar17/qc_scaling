@@ -5,3 +5,21 @@ QCScaling/Manifest.toml
 **/statprof*
 *.h5
 *.jld2
+
+# Generated outputs (plots, logs, SLURM output)
+*.pdf
+*.log
+*.out
+*.png
+
+# Claude Code internal state
+.claude/
+
+# Large genomic data files
+ALL.chr1*
+*.tbi
+*.vcf.gz
+
+# Python bytecode
+__pycache__/
+*.pyc

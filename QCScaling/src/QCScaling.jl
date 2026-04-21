@@ -1,6 +1,10 @@
 module QCScaling
 
-export ParityOperator
+export ParityOperator, FingerprintPacked, rep_accuracy_fast,
+       apply_state!, rep_from_cache, update_rep_at!,
+       fill_state_cache!, apply_state_cached!, update_rep_at_cached!,
+       build_shuffled_pairing, rep_accuracy_shuffled,
+       companion_goal_s, pick_alphas_s
 
 using ProgressBars
 using Statistics
@@ -12,6 +16,8 @@ include("./contexts.jl")
 include("./states.jl")
 include("./fingerprint.jl")
 include("./parities.jl")
+include("./rep_cache.jl")
+include("./shuffled_pairing.jl")
 
 function get_goal_index(po::ParityOperator)
     goal_index = (po.index+1) ÷ 2
@@ -219,6 +225,118 @@ function pick_new_alphas(
         end
     end
     return (base_cxt.parity, best_tz-1, idx_to_alphas(best_alpha-1, length(cxt.pos[1])))
+end
+
+# ---------------------------------------------------------------------------
+# Bit-packed pick_new_alphas
+#
+# companion_goal values are binary (0.0 / 1.0 / NaN).  Pack them into
+# (valid_mask, value_mask) UInt64 words, then compute L1 distance as
+# popcount(xor(fp_words, value_words) & valid_words).
+# ---------------------------------------------------------------------------
+
+function _pack_companion_goal(cg::Vector, nwords::Int)
+    valid = zeros(UInt64, nwords)
+    vals  = zeros(UInt64, nwords)
+    @inbounds for i in eachindex(cg)
+        isnan(cg[i]) && continue
+        w = (i - 1) ÷ 64 + 1
+        b = (i - 1) % 64
+        valid[w] |= (UInt64(1) << b)
+        if !iszero(cg[i])
+            vals[w] |= (UInt64(1) << b)
+        end
+    end
+    return valid, vals
+end
+
+function pick_new_alphas(
+    cxt::Context,
+    goal::Vector,
+    rep::Vector,
+    fp::FingerprintPacked,
+    base_cxt::Context
+)
+    cg          = companion_goal(cxt, goal, rep)
+    valid, vals = _pack_companion_goal(cg, fp.nwords)
+    parity_idx  = base_cxt.parity + 1
+    nwords      = fp.nwords
+    nalpha      = size(fp.words, 4)
+    ntz         = size(fp.words, 3)
+
+    best_score = typemax(Int)
+    best_tz    = 1
+    best_alpha = 1
+    @inbounds for ai in 1:nalpha
+        for tzi in 1:ntz
+            score = 0
+            for w in 1:nwords
+                score += count_ones(xor(fp.words[w, parity_idx, tzi, ai], vals[w]) & valid[w])
+            end
+            if score < best_score
+                best_score = score
+                best_tz    = tzi
+                best_alpha = ai
+            end
+        end
+    end
+    return (base_cxt.parity, best_tz-1, idx_to_alphas(best_alpha-1, length(cxt.pos[1])))
+end
+
+# ---------------------------------------------------------------------------
+# rep_accuracy_fast
+#
+# Computes fraction of goal bits correctly predicted by the current rep cache.
+# Reformulates p = sum/count comparisons as integer ops (2*sum vs count),
+# eliminating all divisions.  p == 0.5 ⟺ 2*sum == count (integer equality).
+# p > 0.5 ⟺ 2*sum > count (integer comparison).
+# ---------------------------------------------------------------------------
+
+function rep_accuracy_fast(
+    rep_sum ::AbstractVector{Float64},
+    rep_ctr ::AbstractVector{Int},
+    goal    ::AbstractVector{Int}
+)
+    s = 0
+    n = length(goal)
+    # Branchless + @simd formulation:
+    #   p = sum/count comparisons rewritten as 2*sum vs count (no division).
+    #   p == 0.5 ⟺ 2*sum == count; p > 0.5 ⟺ 2*sum > count.
+    #   valid flag masks out zero-count and ambiguous positions.
+    @inbounds @simd for i in 1:n
+        i1 = 2i-1; i2 = 2i
+        c1 = rep_ctr[i1]; c2 = rep_ctr[i2]
+        fc1 = Float64(c1); fc2 = Float64(c2)
+        s1_2 = 2.0 * rep_sum[i1]; s2_2 = 2.0 * rep_sum[i2]
+        valid = (c1 > 0) & (c2 > 0) & (s1_2 != fc1) & (s2_2 != fc2)
+        r1 = s1_2 > fc1
+        r2 = s2_2 > fc2
+        s += valid & ((r1 ⊻ r2) == !iszero(goal[i]))
+    end
+    return s / n
+end
+
+# Integer overload: parity values are always 0 or 1 for even-qubit systems,
+# so rep_sum accumulates only integers.  Ambiguity (average == 0.5) arises
+# when equal numbers of states give parity 0 and parity 1, detected by
+# 2*rep_sum == rep_ctr (pure integer comparison, no floating point).
+function rep_accuracy_fast(
+    rep_sum ::AbstractVector{Int},
+    rep_ctr ::AbstractVector{Int},
+    goal    ::AbstractVector{Int}
+)
+    s = 0
+    n = length(goal)
+    @inbounds @simd for i in 1:n
+        i1 = 2i-1; i2 = 2i
+        c1 = rep_ctr[i1]; c2 = rep_ctr[i2]
+        s1 = rep_sum[i1];  s2 = rep_sum[i2]
+        valid = (c1 > 0) & (c2 > 0) & (2*s1 != c1) & (2*s2 != c2)
+        r1 = 2*s1 > c1
+        r2 = 2*s2 > c2
+        s += valid & ((r1 ⊻ r2) == !iszero(goal[i]))
+    end
+    return s / n
 end
 
 end # module QCScaling
