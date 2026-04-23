@@ -283,7 +283,7 @@ function run_H(H_target, nqubit, base_nstate, nstate_max, sa_nsteps, sa_alpha,
     H_act     = hamming_entropy(k, ngbits)
     key       = @sprintf("H%.2f_k%d", H_target, k)
 
-    already_done = h5open(outfile, "r") do h5f
+    already_done = isfile(outfile) && h5open(outfile, "r") do h5f
         haskey(h5f, gp_nq_key) && haskey(h5f[gp_nq_key], key) &&
             haskey(h5f[gp_nq_key][key], "nstates")
     end
