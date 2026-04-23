@@ -284,6 +284,67 @@ function pick_new_alphas(
 end
 
 # ---------------------------------------------------------------------------
+# Allocation-free pick_new_alphas: takes generator + base_cxt directly,
+# avoiding the Context(generator, base_cxt) construction which broadcasts
+# ParityOperator addition across npos elements (~2000 pool allocs per call).
+# ---------------------------------------------------------------------------
+
+@inline function _companion_goal_from_idx(idx::Int, goal, rep)
+    idx == length(rep) && return NaN
+    companion_idx = isone(idx & 1) ? idx + 1 : idx - 1
+    isnan(rep[companion_idx]) && return NaN
+    goal_index = (idx + 1) >> 1
+    return goal[goal_index] == 1 ? 1.0 - rep[companion_idx] : rep[companion_idx]
+end
+
+function pick_new_alphas(
+    generator ::ParityOperator{N},
+    base_cxt  ::Context{N},
+    goal      ::Vector,
+    rep       ::Vector,
+    fp        ::FingerprintPacked
+) where N
+    gen_βs     = generator.βs
+    parity_idx = base_cxt.parity + 1
+    nwords     = fp.nwords
+    npos       = length(base_cxt.pos)
+
+    # Compute companion_goal for each derived position without materialising
+    # the derived Context (saves ~2000 pool allocs per call at nqubit=10).
+    cg = Vector{Float64}(undef, npos)
+    @inbounds for (i, base_po) in enumerate(base_cxt.pos)
+        base_βs = base_po.βs
+        didx = 1; pw = 1
+        @inbounds for j in N:-1:1
+            didx += mod(gen_βs[j] + base_βs[j], 3) * pw
+            pw   *= 3
+        end
+        cg[i] = _companion_goal_from_idx(didx, goal, rep)
+    end
+
+    valid, vals = _pack_companion_goal(cg, nwords)
+    nalpha = size(fp.words, 4)
+    ntz    = size(fp.words, 3)
+    best_score = typemax(Int)
+    best_tz    = 1
+    best_alpha = 1
+    @inbounds for ai in 1:nalpha
+        for tzi in 1:ntz
+            score = 0
+            for w in 1:nwords
+                score += count_ones(xor(fp.words[w, parity_idx, tzi, ai], vals[w]) & valid[w])
+            end
+            if score < best_score
+                best_score = score
+                best_tz    = tzi
+                best_alpha = ai
+            end
+        end
+    end
+    return (base_cxt.parity, best_tz - 1, idx_to_alphas(best_alpha - 1, N))
+end
+
+# ---------------------------------------------------------------------------
 # rep_accuracy_fast
 #
 # Computes fraction of goal bits correctly predicted by the current rep cache.

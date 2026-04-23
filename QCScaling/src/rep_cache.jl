@@ -87,11 +87,54 @@ indices and integer parities for `state`.  Costs the same as one
 function fill_state_cache!(idxs::Vector{Int}, pars::Vector{Int},
                            state, cxt_master)
     base_cxt = state.theta_s == 0 ? cxt_master.base_even : cxt_master.base_odd
+    gen_βs   = state.generator.βs
+    N        = length(gen_βs)
     @inbounds for (i, base_po) in enumerate(base_cxt.pos)
-        derived_po = state.generator + base_po
-        idxs[i] = derived_po.index
-        pars[i] = round(Int, parity(state, derived_po))
+        base_βs = base_po.βs
+        # Compute derived index without creating a ParityOperator or SVector.
+        # to_index(derived_βs) = 1 + sum_j( derived_βs[j] * 3^(N-j) )
+        didx = 1
+        pw   = 1
+        @inbounds for j in N:-1:1
+            didx += mod(gen_βs[j] + base_βs[j], 3) * pw
+            pw   *= 3
+        end
+        idxs[i] = didx
+        # parity(state, state.generator + base_po): substituting derived_βs into
+        # the parity formula gives bd[j] = mod(-base_βs[j], 3), independent of
+        # gen_βs.  Compute directly without allocating any intermediate struct.
+        pars[i] = _parity_from_base(state, base_βs, N)
     end
+end
+
+# Allocation-free parity computation for fill_state_cache!.
+# Equivalent to round(Int, parity(state, state.generator + base_po)) but avoids
+# constructing the derived ParityOperator.  Proof: bd[j] = mod(gen_βs[j] -
+# mod(gen_βs[j]+base_βs[j],3), 3) = mod(-base_βs[j], 3) for all gen_βs[j].
+@inline function _parity_from_base(state, base_βs, N)
+    alphas  = state.alphas
+    theta_s = state.theta_s
+    theta_z = state.theta_z
+    n_zero   = 0
+    all_zero = true
+    sum_J    = 0
+    dot_Ja   = 0
+    @inbounds for j in 1:N
+        bd = mod(-Int(base_βs[j]), 3)
+        if bd == 0
+            n_zero += 1
+        else
+            all_zero = false
+            jj = 1 - mod(bd - 1, 2)
+            sum_J += jj
+            j < N && (dot_Ja += jj * alphas[j])
+        end
+    end
+    # parity() returns 0.0/0.5/1.0; round(Int, 0.5) == 0 (banker's rounding)
+    all_zero   && return mod(sum(alphas), 2)
+    n_zero > 0 && return 0   # 0.5 → round to 0
+    mod(sum_J + theta_s, 2) == 1 && return 0   # 0.5 → round to 0
+    return mod(theta_z + (sum_J + theta_s) ÷ 2 + dot_Ja, 2)
 end
 
 """

@@ -68,12 +68,13 @@ end
 # ---------------------------------------------------------------------------
 
 function smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng)
-    gen_idx  = rand(rng, 0:3^nqubit-1)
+    gen_idx   = rand(rng, 0:3^nqubit-1)
     generator = QCScaling.ParityOperator(gen_idx, nqubit)
     theta_s   = rand(rng, 0:1)
     base_cxt  = theta_s == 0 ? cxt_master.base_even : cxt_master.base_odd
-    cxt       = QCScaling.Context(generator, base_cxt)
-    alphas    = QCScaling.pick_new_alphas(cxt, goal, rep, fingerprint, base_cxt)
+    # Pass generator+base_cxt directly; avoids Context(generator, base_cxt) which
+    # broadcasts ParityOperator+ across npos elements (~2000 pool allocs/call).
+    alphas    = QCScaling.pick_new_alphas(generator, base_cxt, goal, rep, fingerprint)
     return QCScaling.PseudoGHZState(alphas..., generator)
 end
 
