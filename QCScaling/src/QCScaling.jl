@@ -250,6 +250,21 @@ function _pack_companion_goal(cg::Vector, nwords::Int)
     return valid, vals
 end
 
+# Mutating version: fills pre-allocated valid/vals in-place (zero-alloc).
+function _pack_companion_goal!(valid::Vector{UInt64}, vals::Vector{UInt64}, cg::Vector)
+    fill!(valid, zero(UInt64))
+    fill!(vals,  zero(UInt64))
+    @inbounds for i in eachindex(cg)
+        isnan(cg[i]) && continue
+        w = (i - 1) ÷ 64 + 1
+        b = (i - 1) % 64
+        valid[w] |= (UInt64(1) << b)
+        if !iszero(cg[i])
+            vals[w] |= (UInt64(1) << b)
+        end
+    end
+end
+
 function pick_new_alphas(
     cxt::Context,
     goal::Vector,
@@ -333,6 +348,60 @@ function pick_new_alphas(
             score = 0
             for w in 1:nwords
                 score += count_ones(xor(fp.words[w, parity_idx, tzi, ai], vals[w]) & valid[w])
+            end
+            if score < best_score
+                best_score = score
+                best_tz    = tzi
+                best_alpha = ai
+            end
+        end
+    end
+    return (base_cxt.parity, best_tz - 1, idx_to_alphas(best_alpha - 1, N))
+end
+
+# ---------------------------------------------------------------------------
+# Zero-allocation pick_new_alphas: caller pre-allocates scratch_cg, scratch_valid,
+# scratch_vals (sized npos and fp.nwords respectively) and passes them in.
+# This eliminates all per-call heap allocations from the SA hot path.
+# ---------------------------------------------------------------------------
+
+function pick_new_alphas(
+    generator    ::ParityOperator{N},
+    base_cxt     ::Context{N},
+    goal         ::Vector,
+    rep          ::Vector,
+    fp           ::FingerprintPacked,
+    scratch_cg   ::Vector{Float64},
+    scratch_valid::Vector{UInt64},
+    scratch_vals ::Vector{UInt64}
+) where N
+    gen_βs     = generator.βs
+    parity_idx = base_cxt.parity + 1
+    nwords     = fp.nwords
+    npos       = length(base_cxt.pos)
+
+    @inbounds for (i, base_po) in enumerate(base_cxt.pos)
+        base_βs = base_po.βs
+        didx = 1; pw = 1
+        @inbounds for j in N:-1:1
+            didx += mod(gen_βs[j] + base_βs[j], 3) * pw
+            pw   *= 3
+        end
+        scratch_cg[i] = _companion_goal_from_idx(didx, goal, rep)
+    end
+
+    _pack_companion_goal!(scratch_valid, scratch_vals, scratch_cg)
+
+    nalpha = size(fp.words, 4)
+    ntz    = size(fp.words, 3)
+    best_score = typemax(Int)
+    best_tz    = 1
+    best_alpha = 1
+    @inbounds for ai in 1:nalpha
+        for tzi in 1:ntz
+            score = 0
+            for w in 1:nwords
+                score += count_ones(xor(fp.words[w, parity_idx, tzi, ai], scratch_vals[w]) & scratch_valid[w])
             end
             if score < best_score
                 best_score = score

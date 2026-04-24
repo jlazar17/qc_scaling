@@ -67,14 +67,15 @@ end
 # SA
 # ---------------------------------------------------------------------------
 
-function smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng)
+function smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng,
+                        scratch_cg, scratch_valid, scratch_vals)
     gen_idx   = rand(rng, 0:3^nqubit-1)
     generator = QCScaling.ParityOperator(gen_idx, nqubit)
     theta_s   = rand(rng, 0:1)
     base_cxt  = theta_s == 0 ? cxt_master.base_even : cxt_master.base_odd
-    # Pass generator+base_cxt directly; avoids Context(generator, base_cxt) which
-    # broadcasts ParityOperator+ across npos elements (~2000 pool allocs/call).
-    alphas    = QCScaling.pick_new_alphas(generator, base_cxt, goal, rep, fingerprint)
+    # Zero-alloc overload: uses pre-allocated scratch_cg/valid/vals buffers.
+    alphas    = QCScaling.pick_new_alphas(generator, base_cxt, goal, rep, fingerprint,
+                                          scratch_cg, scratch_valid, scratch_vals)
     return QCScaling.PseudoGHZState(alphas..., generator)
 end
 
@@ -108,9 +109,13 @@ function run_goal_aware_sa(goal, nqubit, nstate, nsteps, alpha;
     min_delta   = 1.0 / ngbits
     stag_window = round(Int, -5.0 / log(alpha))
     npos        = length(cxt_master.base_even.pos)
+    nwords      = fingerprint.nwords
 
-    scratch_idxs = Vector{Int}(undef, npos)
-    scratch_pars = Vector{Int}(undef, npos)
+    scratch_idxs  = Vector{Int}(undef, npos)
+    scratch_pars  = Vector{Int}(undef, npos)
+    scratch_cg    = Vector{Float64}(undef, npos)
+    scratch_valid = Vector{UInt64}(undef, nwords)
+    scratch_vals  = Vector{UInt64}(undef, nwords)
 
     for _ in 1:n_restarts
         ensemble = [QCScaling.random_state(nqubit) for _ in 1:nstate]
@@ -135,7 +140,8 @@ function run_goal_aware_sa(goal, nqubit, nstate, nsteps, alpha;
 
         for step in 1:nsteps
             which = rand(rng, 1:nstate)
-            ns    = smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng)
+            ns    = smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng,
+                                   scratch_cg, scratch_valid, scratch_vals)
 
             fill_state_cache!(scratch_idxs, scratch_pars, ns, cxt_master)
 
@@ -194,14 +200,16 @@ function adaptive_grid(goals, nqubit, base_nstate, nsteps, alpha,
                        n_coarse=12, n_refine=2)
 
     results = Dict{Int, Tuple{Vector{Float64}, Vector{Float64}}}()
-    h5open(outfile, "r") do h5f
-        haskey(h5f, gp_nq_key) || return
-        haskey(h5f[gp_nq_key], h_key) || return
-        gp_h = h5f[gp_nq_key][h_key]
-        for k in keys(gp_h)
-            startswith(k, "ns_") || continue
-            ns = parse(Int, k[4:end])
-            results[ns] = (read(gp_h[k]["accs"]), read(gp_h[k]["etas"]))
+    if isfile(outfile)
+        h5open(outfile, "r") do h5f
+            haskey(h5f, gp_nq_key) || return
+            haskey(h5f[gp_nq_key], h_key) || return
+            gp_h = h5f[gp_nq_key][h_key]
+            for k in keys(gp_h)
+                startswith(k, "ns_") || continue
+                ns = parse(Int, k[4:end])
+                results[ns] = (read(gp_h[k]["accs"]), read(gp_h[k]["etas"]))
+            end
         end
     end
     !isempty(results) && @printf("  Resuming with %d existing nstate points: %s\n",
