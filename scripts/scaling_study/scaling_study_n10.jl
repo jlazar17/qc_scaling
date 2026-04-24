@@ -206,6 +206,7 @@ function adaptive_grid(goals, nqubit, base_nstate, nsteps, alpha,
     end
     !isempty(results) && @printf("  Resuming with %d existing nstate points: %s\n",
                                   length(results), string(sort(collect(keys(results)))))
+    flush(stdout)
 
     function run_and_checkpoint(ns)
         accs, etas = evaluate_nstate(ns, goals, nqubit, nsteps, alpha, n_restarts, seeds)
@@ -221,6 +222,7 @@ function adaptive_grid(goals, nqubit, base_nstate, nsteps, alpha,
     coarse = log_spaced_nstates(base_nstate, nstate_max, n_coarse)
 
     @printf("  Phase 1: coarse grid %s\n", string(coarse))
+    flush(stdout)
     for ns in coarse
         if haskey(results, ns)
             accs, etas = results[ns]
