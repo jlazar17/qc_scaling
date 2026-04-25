@@ -82,10 +82,16 @@ end
 function calibrate_T0(ensemble, rep_sum, rep_ctr, rep, goal, nqubit,
                       cxt_master, fingerprint; target_rate=0.8, n_samples=500, rng)
     nstate = length(ensemble); current_acc = rep_accuracy_fast(rep_sum, rep_ctr, goal)
+    npos   = length(cxt_master.base_even.pos)
+    nwords = fingerprint.nwords
+    cal_cg    = Vector{Float64}(undef, npos)
+    cal_valid = Vector{UInt64}(undef, nwords)
+    cal_vals  = Vector{UInt64}(undef, nwords)
     bad_deltas = Float64[]
     for _ in 1:n_samples
         which = rand(rng, 1:nstate)
-        ns    = smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng)
+        ns    = smart_proposal(nqubit, rep, goal, fingerprint, cxt_master, rng,
+                               cal_cg, cal_valid, cal_vals)
         apply_state!(rep_sum, rep_ctr, ensemble[which], cxt_master, -1)
         apply_state!(rep_sum, rep_ctr, ns,              cxt_master,  1)
         delta = rep_accuracy_fast(rep_sum, rep_ctr, goal) - current_acc
