@@ -15,14 +15,14 @@ function Context(generator::ParityOperator{N}, base_cxt::Context{N}) where N
     return Context(pos, base_cxt.parity)
 end
 
-struct ContextMaster
-    base_even::Context
-    base_odd::Context
+struct ContextMaster{N}
+    base_even::Context{N}
+    base_odd::Context{N}
     nqubit::Int
     function ContextMaster(base_even::Context{N}, base_odd::Context{N}, nqubit) where N
         @assert length(base_even.pos)==(2^(nqubit -1) + 1) "Not the right number of POs"
         @assert length(base_odd.pos)==(2^(nqubit -1) + 1) "Not the right number of POs"
-        return new(base_even, base_odd, nqubit)
+        return new{N}(base_even, base_odd, nqubit)
     end
 end
 
